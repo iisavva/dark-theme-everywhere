@@ -12,7 +12,7 @@
     contrast: 85,           // % (below 100 softens pure black / pure white)
     sepia: 0,               // %
     grayscale: 0,           // %
-    imageBrightness: 92,    // % brightness of photos and pictures
+    imageBrightness: 90,    // % brightness of photos and pictures
     smartImages: true,      // analyse images: make dark logos/icons visible
     invertDocImages: false, // invert light pictures with dark text (schemes, screenshots)
     detectDarkSites: true   // do not touch sites that are already dark
