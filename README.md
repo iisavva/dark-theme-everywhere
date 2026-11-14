@@ -30,6 +30,17 @@ The easiest way is to download the ready-made `dark-theme-everywhere.zip` from t
 [Releases](https://github.com/iisavva/dark-theme-everywhere/releases/latest) page, unpack it
 and load the resulting folder using the steps below.
 
+Starting with v1.0.1, releases are built by GitHub Actions from the tagged commit, and each
+release lists the SHA-256 checksum of the zip (also attached as `dark-theme-everywhere.zip.sha256`).
+Check it before installing:
+
+```bash
+sha256sum dark-theme-everywhere.zip
+```
+
+On Windows (PowerShell): `Get-FileHash dark-theme-everywhere.zip`. The result must match the
+checksum on the release page.
+
 Or get the source code:
 
 ```bash
@@ -54,6 +65,15 @@ git clone https://github.com/iisavva/dark-theme-everywhere.git
 
 ## Building .crx and .zip
 
+On Linux or macOS, `tools/build.sh` builds the zip (the same way CI does) and prints its SHA-256.
+The build is reproducible: the same commit always gives the same checksum.
+
+```bash
+bash tools/build.sh
+```
+
+On Windows, `tools/build.ps1` also builds a signed `.crx`:
+
 ```bash
 powershell -ExecutionPolicy Bypass -File tools/build.ps1
 ```
@@ -72,6 +92,20 @@ Chrome and Edge on Windows usually refuse to install a `.crx` that does not come
 you get an error, or the extension is disabled right away. For personal use it is simpler to load
 the `dist/dark-theme-everywhere` folder via "Load unpacked". A `.crx` is fine for Linux/macOS, for
 browsers with relaxed rules (Yandex, Opera) and for installation via enterprise policies.
+
+## Releasing
+
+1. Bump `"version"` in `manifest.json` and merge it into `main`.
+2. Tag that commit and push the tag, for example:
+
+   ```bash
+   git tag v1.0.1
+   git push origin v1.0.1
+   ```
+
+The release workflow checks that the tag matches `manifest.json`, runs the tests, builds the zip
+from the tagged commit and publishes the release with its checksum. The `.crx` is not built in CI:
+signing it would need the private key; build it with `tools/build.ps1` and attach it by hand if needed.
 
 ## How it works
 
