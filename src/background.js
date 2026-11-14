@@ -9,9 +9,110 @@ if (typeof importScripts === 'function' && typeof DT === 'undefined') importScri
 const statsCache = new Map();
 const MAX_BYTES = 8 * 1024 * 1024;
 
-async function analyzeRemote(url) {
+/* ------------------------------------------ local network protection */
+/*
+ * The worker has <all_urls> access and is not limited by CORS, while the image URL comes from
+ * the page. Without a check, any site could make the extension request addresses in the user's
+ * local network (router, localhost services) and learn something about them from how its
+ * pictures get themed. So private addresses are analysed only for pages that are themselves
+ * in the local network (an intranet page with intranet pictures).
+ */
+
+function parseIPv4(h) {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (!m) return null;
+  const p = m.slice(1).map(Number);
+  return p.every((n) => n <= 255) ? p : null;
+}
+
+function isPrivateIPv4([a, b]) {
+  return a === 0 || a === 10 || a === 127 || a >= 224 ||   // this net, private, loopback, multicast/reserved
+    (a === 100 && b >= 64 && b <= 127) ||                    // carrier-grade NAT
+    (a === 169 && b === 254) ||                              // link-local
+    (a === 172 && b >= 16 && b <= 31) ||                     // private
+    (a === 192 && b === 168) ||                              // private
+    (a === 192 && b === 0) ||                                // IETF protocol assignments (192.0.0.0/24 and neighbours)
+    (a === 198 && (b === 18 || b === 19));                   // benchmarking
+}
+
+/** Expands an IPv6 address (without brackets) to 8 numbers, or null. */
+function parseIPv6(h) {
+  h = h.split('%')[0];
+  const tail = /(\d{1,3}(?:\.\d{1,3}){3})$/.exec(h);
+  if (tail) {
+    const v4 = parseIPv4(tail[1]);
+    if (!v4) return null;
+    h = h.slice(0, -tail[1].length) + ((v4[0] << 8) | v4[1]).toString(16) + ':' + ((v4[2] << 8) | v4[3]).toString(16);
+  }
+  const halves = h.split('::');
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const rest = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const fill = 8 - head.length - rest.length;
+  if (halves.length === 1 ? fill !== 0 : fill < 1) return null;
+  const parts = head.concat(Array(halves.length === 2 ? fill : 0).fill('0'), rest);
+  if (!parts.every((x) => /^[0-9a-f]{1,4}$/i.test(x))) return null;
+  return parts.map((x) => parseInt(x, 16));
+}
+
+function isPrivateIPv6(h) {
+  const p = parseIPv6(h);
+  if (!p) return true; // unparsable: be safe
+  if (p.slice(0, 7).every((x) => x === 0) && p[7] <= 1) return true;          // :: and ::1
+  if (p.slice(0, 5).every((x) => x === 0) && (p[5] === 0xffff || p[5] === 0)) {  // IPv4-mapped / -compatible
+    return isPrivateIPv4([p[6] >> 8, p[6] & 255, p[7] >> 8, p[7] & 255]);
+  }
+  if (p[0] === 0x64 && p[1] === 0xff9b) {                                      // NAT64
+    return isPrivateIPv4([p[6] >> 8, p[6] & 255, p[7] >> 8, p[7] & 255]);
+  }
+  return (p[0] & 0xfe00) === 0xfc00 ||  // unique local fc00::/7
+    (p[0] & 0xffc0) === 0xfe80 ||        // link-local fe80::/10
+    (p[0] & 0xffc0) === 0xfec0 ||        // site-local (deprecated) fec0::/10
+    (p[0] & 0xff00) === 0xff00;          // multicast
+}
+
+/**
+ * True for addresses in the local network: localhost, private / link-local IPs, single-label
+ * intranet names and the usual local-only suffixes. The URL parser has already normalised
+ * IPv4 forms like 0x7f.1 or 2130706433 to 127.0.0.1.
+ */
+function isPrivateHost(hostname) {
+  const h = String(hostname || '').toLowerCase().replace(/\.$/, '');
+  if (!h) return true;
+  if (h.startsWith('[')) return isPrivateIPv6(h.slice(1, -1));
+  const v4 = parseIPv4(h);
+  if (v4) return isPrivateIPv4(v4);
+  if (!h.includes('.')) return true; // localhost, router, nas, …
+  return /\.(?:localhost|local|localdomain|internal|intranet|lan|home|corp|home\.arpa)$/.test(h);
+}
+
+function isPrivateUrl(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return true;
+    return isPrivateHost(u.hostname);
+  } catch (e) {
+    return true;
+  }
+}
+
+/** Whether the requesting frame may analyse pictures from the local network. */
+function senderIsLocal(sender) {
+  const url = sender.url || (sender.tab && sender.tab.url) || '';
+  if (/^file:/i.test(url)) return true;
+  try {
+    const u = new URL(url);
+    return (u.protocol === 'http:' || u.protocol === 'https:') && isPrivateHost(u.hostname);
+  } catch (e) {
+    return false;
+  }
+}
+
+async function analyzeRemote(url, allowPrivate) {
   const res = await fetch(url, { credentials: 'omit', cache: 'force-cache' });
   if (!res.ok) return null;
+  // A public address may redirect into the local network: drop the answer then.
+  if (!allowPrivate && res.url && isPrivateUrl(res.url)) return null;
   const type = (res.headers.get('content-type') || '').toLowerCase();
   const blob = await res.blob();
   if (blob.size > MAX_BYTES) return null;
@@ -35,12 +136,15 @@ async function analyzeRemote(url) {
   return DT.imageStats(ctx.getImageData(0, 0, size.w, size.h).data, size.w * size.h);
 }
 
-function analyzeCached(url) {
+function analyzeCached(url, allowPrivate) {
   if (!/^https?:/i.test(url)) return Promise.resolve(null);
-  if (statsCache.has(url)) return statsCache.get(url);
-  const p = analyzeRemote(url).catch(() => null);
+  if (!allowPrivate && isPrivateUrl(url)) return Promise.resolve(null);
+  // Separate cache entries, so a result fetched for an intranet page never reaches a public one.
+  const key = (allowPrivate ? 'local|' : 'public|') + url;
+  if (statsCache.has(key)) return statsCache.get(key);
+  const p = analyzeRemote(url, allowPrivate).catch(() => null);
   if (statsCache.size > 1000) statsCache.delete(statsCache.keys().next().value);
-  statsCache.set(url, p);
+  statsCache.set(key, p);
   return p;
 }
 
@@ -64,7 +168,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   switch (msg.type) {
     case 'analyzeImage':
-      analyzeCached(String(msg.url || '')).then(sendResponse, () => sendResponse(null));
+      analyzeCached(String(msg.url || ''), senderIsLocal(sender)).then(sendResponse, () => sendResponse(null));
       return true;
 
     case 'getTopState':
