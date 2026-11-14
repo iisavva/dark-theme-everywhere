@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check JavaScript syntax
+        run: |
+          for f in $(git ls-files '*.js'); do node --check "$f"; done
+
+      - name: Check manifest
+        run: node -e "const m = require('./manifest.json'); if (!/^\d+\.\d+\.\d+$/.test(m.version)) throw new Error('bad version ' + m.version)"
+
+      - name: Background worker tests
+        run: node test/background.test.js
+
+      - name: Build package
+        run: bash tools/build.sh
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dark-theme-everywhere
+          path: dist/

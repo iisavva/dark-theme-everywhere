@@ -1,0 +1,54 @@
+name: Release
+
+# Publishes a release when a version tag (v1.2.3) is pushed. The package is built here from the
+# tagged commit, so what users download is exactly the code in the repository, and its SHA-256
+# checksum is published with it.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check that the tag matches manifest.json
+        run: |
+          version=$(node -p "require('./manifest.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match manifest version $version"
+            exit 1
+          fi
+
+      - name: Test
+        run: node test/background.test.js
+
+      - name: Build package
+        run: bash tools/build.sh
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          sha=$(cut -d' ' -f1 dark-theme-everywhere.zip.sha256)
+          cat > notes.md <<NOTES
+          Built by GitHub Actions from commit ${GITHUB_SHA} ([workflow run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})).
+
+          **SHA-256** of \`dark-theme-everywhere.zip\`:
+          \`\`\`
+          ${sha}
+          \`\`\`
+          Check it before installing: \`sha256sum dark-theme-everywhere.zip\` (Linux/macOS) or
+          \`Get-FileHash dark-theme-everywhere.zip\` (Windows PowerShell).
+
+          Installation: unpack the zip and load the folder via \`chrome://extensions\` → "Developer mode" →
+          "Load unpacked". See the [README](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}#readme) for Firefox.
+          NOTES
+          gh release create "$GITHUB_REF_NAME" dark-theme-everywhere.zip dark-theme-everywhere.zip.sha256 \
+            --verify-tag --title "$GITHUB_REF_NAME" --notes-file notes.md --generate-notes

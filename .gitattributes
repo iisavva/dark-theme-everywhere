@@ -1,0 +1,5 @@
+# Keep LF line endings in the repository and in packages built on Windows.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ps1 text eol=crlf
