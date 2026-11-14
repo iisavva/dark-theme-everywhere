@@ -24,7 +24,11 @@
 
 ## Установка (режим разработчика)
 
-Скачайте проект:
+Проще всего скачать готовую сборку `dark-theme-everywhere.zip` со страницы
+[Releases](https://github.com/iisavva/dark-theme-everywhere/releases/latest), распаковать её
+и загрузить получившуюся папку по шагам ниже.
+
+Или скачайте исходники:
 
 ```bash
 git clone https://github.com/iisavva/dark-theme-everywhere.git
