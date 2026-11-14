@@ -108,32 +108,101 @@ function senderIsLocal(sender) {
   }
 }
 
-async function analyzeRemote(url, allowPrivate) {
-  const res = await fetch(url, { credentials: 'omit', cache: 'force-cache' });
-  if (!res.ok) return null;
-  // A public address may redirect into the local network: drop the answer then.
-  if (!allowPrivate && res.url && isPrivateUrl(res.url)) return null;
-  const type = (res.headers.get('content-type') || '').toLowerCase();
-  const blob = await res.blob();
-  if (blob.size > MAX_BYTES) return null;
+const MAX_SVG_BYTES = 1024 * 1024;
+const FETCH_TIMEOUT_MS = 15000;
+const MAX_PARALLEL = 4;
 
-  const svgByName = /\.svgz?(?:[?#]|$)/i.test(url) && (!type || type.includes('octet-stream') || type.includes('xml'));
-  if (type.includes('svg') || svgByName) {
-    // SVG cannot be rasterised in a worker; the content script draws it.
-    if (blob.size > 1024 * 1024) return null;
-    const text = await blob.text();
-    return /<svg[\s>]/i.test(text) ? { svg: text } : null;
+/**
+ * Reads at most `max` bytes of the body. Returns null (and cancels the download) if the body is
+ * larger: the size check must happen while reading, not after the whole file has arrived.
+ */
+async function readLimited(res, max) {
+  const declared = Number(res.headers.get('content-length'));
+  if (declared > max) {
+    if (res.body) res.body.cancel().catch(() => {});
+    return null;
   }
-  if (type && !type.startsWith('image/') && !type.includes('octet-stream')) return null;
+  if (!res.body || !res.body.getReader) {
+    const blob = await res.blob();
+    return blob.size > max ? null : blob;
+  }
+  const reader = res.body.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+  return new Blob(chunks, { type: res.headers.get('content-type') || '' });
+}
 
-  const bmp = await createImageBitmap(blob);
-  const size = DT.sampleSize(bmp.width, bmp.height);
-  const canvas = new OffscreenCanvas(size.w, size.h);
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  ctx.drawImage(bmp, 0, 0, size.w, size.h);
-  if (bmp.close) bmp.close();
-  // Only statistics leave the worker, never the image itself.
-  return DT.imageStats(ctx.getImageData(0, 0, size.w, size.h).data, size.w * size.h);
+async function analyzeRemote(url, allowPrivate) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { credentials: 'omit', cache: 'force-cache', signal: ctrl.signal });
+    if (!res.ok) {
+      if (res.body) res.body.cancel().catch(() => {});
+      return null;
+    }
+    // A public address may redirect into the local network: drop the answer then.
+    if (!allowPrivate && res.url && isPrivateUrl(res.url)) {
+      if (res.body) res.body.cancel().catch(() => {});
+      return null;
+    }
+    const type = (res.headers.get('content-type') || '').toLowerCase();
+    const svgByName = /\.svgz?(?:[?#]|$)/i.test(url) && (!type || type.includes('octet-stream') || type.includes('xml'));
+    const isSvg = type.includes('svg') || svgByName;
+    if (!isSvg && type && !type.startsWith('image/') && !type.includes('octet-stream')) {
+      if (res.body) res.body.cancel().catch(() => {});
+      return null;
+    }
+
+    const blob = await readLimited(res, isSvg ? MAX_SVG_BYTES : MAX_BYTES);
+    if (!blob) return null;
+
+    if (isSvg) {
+      // SVG cannot be rasterised in a worker; the content script draws it.
+      const text = await blob.text();
+      return /<svg[\s>]/i.test(text) ? { svg: text } : null;
+    }
+
+    const bmp = await createImageBitmap(blob);
+    const size = DT.sampleSize(bmp.width, bmp.height);
+    const canvas = new OffscreenCanvas(size.w, size.h);
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(bmp, 0, 0, size.w, size.h);
+    if (bmp.close) bmp.close();
+    // Only statistics leave the worker, never the image itself.
+    return DT.imageStats(ctx.getImageData(0, 0, size.w, size.h).data, size.w * size.h);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/* A page can reference thousands of pictures: download only a few at a time. */
+let running = 0;
+const waiting = [];
+
+function limited(task) {
+  return new Promise((resolve, reject) => {
+    const run = () => {
+      running++;
+      task().then(resolve, reject).finally(() => {
+        running--;
+        const next = waiting.shift();
+        if (next) next();
+      });
+    };
+    if (running < MAX_PARALLEL) run();
+    else waiting.push(run);
+  });
 }
 
 function analyzeCached(url, allowPrivate) {
@@ -142,9 +211,12 @@ function analyzeCached(url, allowPrivate) {
   // Separate cache entries, so a result fetched for an intranet page never reaches a public one.
   const key = (allowPrivate ? 'local|' : 'public|') + url;
   if (statsCache.has(key)) return statsCache.get(key);
-  const p = analyzeRemote(url, allowPrivate).catch(() => null);
+  const p = limited(() => analyzeRemote(url, allowPrivate)).catch(() => null);
   if (statsCache.size > 1000) statsCache.delete(statsCache.keys().next().value);
   statsCache.set(key, p);
+  // SVG text can be up to 1 MB: keep it out of the cache (the content script caches the
+  // statistics it computes from it, and the browser's HTTP cache keeps the file).
+  p.then((r) => { if (r && r.svg && statsCache.get(key) === p) statsCache.delete(key); });
   return p;
 }
 
