@@ -1,0 +1,57 @@
+{
+  "manifest_version": 3,
+  "name": "Тёмная тема везде",
+  "short_name": "Тёмная тема",
+  "version": "1.0.0",
+  "description": "Тёмная тема для любого сайта: умная обработка картинок и логотипов, включение для всех сайтов или для отдельных.",
+  "icons": {
+    "16": "icons/on-16.png",
+    "32": "icons/on-32.png",
+    "48": "icons/on-48.png",
+    "128": "icons/on-128.png"
+  },
+  "permissions": ["storage", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "src/background.js",
+    "scripts": ["src/shared.js", "src/background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/shared.js", "src/content.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_about_blank": true
+    }
+  ],
+  "action": {
+    "default_title": "Тёмная тема",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/on-16.png",
+      "32": "icons/on-32.png",
+      "48": "icons/on-48.png"
+    }
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  },
+  "commands": {
+    "toggle-site": {
+      "suggested_key": { "default": "Alt+Shift+D" },
+      "description": "Включить/выключить тёмную тему на текущем сайте"
+    },
+    "toggle-global": {
+      "suggested_key": { "default": "Alt+Shift+G" },
+      "description": "Включить/выключить тёмную тему для всех сайтов"
+    }
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "dark-theme-everywhere@example.local",
+      "strict_min_version": "121.0"
+    }
+  }
+}

@@ -1,0 +1,47 @@
+:root {
+  color-scheme: dark;
+  --bg: #15171c;
+  --card: #1e2128;
+  --line: #2c313b;
+  --text: #e6e8ec;
+  --muted: #9aa1ad;
+  --accent: #f5c84c;
+  --accent-ink: #1a1a1a;
+  --on: #7bd88f;
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); }
+a { color: var(--accent); }
+button, input, select { font: inherit; color: inherit; }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+
+/* switch */
+.switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+.switch input { position: absolute; opacity: 0; pointer-events: none; }
+.switch i { width: 34px; height: 20px; border-radius: 10px; background: #3a404c; position: relative; transition: background .15s; }
+.switch i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #cfd3da; transition: transform .15s; }
+.switch input:checked + i { background: var(--accent); }
+.switch input:checked + i::after { transform: translateX(14px); background: #fff; }
+.switch input:focus-visible + i { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* segmented control */
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: #14161b; border: 1px solid var(--line); border-radius: 8px; padding: 3px; gap: 3px; }
+.seg button { border: 0; background: transparent; padding: 6px 4px; border-radius: 6px; cursor: pointer; color: var(--muted); }
+.seg button:hover { color: var(--text); }
+.seg button.active { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+/* ranges */
+.range { display: grid; grid-template-columns: 1fr auto; align-items: center; row-gap: 2px; }
+.range + .range { margin-top: 8px; }
+.range output { color: var(--muted); font-variant-numeric: tabular-nums; }
+.range input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); margin: 0; }
+
+/* checkboxes */
+.check { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.check + .check { margin-top: 10px; }
+.check input { accent-color: var(--accent); margin: 2px 0 0; flex: none; }
+.check small { display: block; color: var(--muted); font-size: 11.5px; }
+
+kbd { background: #2a2f39; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font: 11px ui-monospace, monospace; }

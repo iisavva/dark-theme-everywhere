@@ -1,0 +1,12 @@
+body { width: 330px; padding: 12px; display: grid; gap: 10px; }
+
+.top { display: flex; align-items: center; justify-content: space-between; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+
+.host { font-weight: 600; font-size: 14px; margin-bottom: 8px; word-break: break-all; }
+.status { margin-top: 8px; color: var(--muted); font-size: 12px; }
+.status.on { color: var(--on); }
+#siteCard.disabled .seg { opacity: .4; pointer-events: none; }
+
+footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.keys { white-space: nowrap; }

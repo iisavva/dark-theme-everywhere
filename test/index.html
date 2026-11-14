@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Тест тёмной темы</title>
+  <!-- Running without the extension: stub + content script. With the extension installed,
+       open the page without ?stub to test the real extension. -->
+  <script>
+    if (/[?&]stub\b/.test(location.search)) {
+      document.write('<script src="chrome-stub.js"><\/script><script src="../src/shared.js"><\/script><script src="../src/content.js"><\/script>');
+    }
+  </script>
+  <style>
+    body { font: 16px/1.5 Arial, sans-serif; margin: 0; color: #222; }
+    header { background: #1d2733; padding: 12px 20px; display: flex; align-items: center; gap: 20px; }
+    header a { color: #fff; }
+    main { padding: 20px; max-width: 900px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    figure { margin: 0; border: 1px solid #ddd; padding: 10px; border-radius: 8px; }
+    figcaption { font-size: 13px; color: #666; }
+    .bg-icon { width: 64px; height: 64px; background: url(img/icon-dark.png) no-repeat center; display: inline-block; }
+    .hero { background: url(img/photo.jpg) center/cover; color: #fff; padding: 40px 20px; border-radius: 8px; font-size: 24px; }
+    .card { background: #f3f5f8; padding: 12px; border-radius: 8px; }
+    .btn { background: #2563eb; color: #fff; border: 0; padding: 8px 14px; border-radius: 6px; }
+    .fixed { position: fixed; right: 16px; bottom: 16px; background: #fff; border: 1px solid #ccc; padding: 8px 12px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="img/logo-white.png" alt="white logo" height="40">
+    <a href="#">Ссылка в тёмной шапке</a>
+  </header>
+  <main>
+    <h1>Обычная светлая страница</h1>
+    <p>Текст, <a href="#">ссылка</a>, <button class="btn">Кнопка</button> <span style="color:#c00">красный</span> <span style="color:#080">зелёный</span>.</p>
+    <div class="grid">
+      <figure><img src="img/logo-black.png" alt=""><figcaption>Чёрный логотип, прозрачный фон → должен стать светлым</figcaption></figure>
+      <figure><img src="img/logo-black.svg" alt=""><figcaption>Чёрный SVG-логотип → светлым</figcaption></figure>
+      <figure><img src="img/logo-color.png" alt=""><figcaption>Цветной логотип с тёмным текстом</figcaption></figure>
+      <figure class="card"><img src="img/logo-white.png" alt="" style="background:#333"><figcaption>Белый логотип на своём тёмном фоне → как есть</figcaption></figure>
+      <figure><img src="img/photo.jpg" alt="" width="240"><figcaption>Фото → как в оригинале</figcaption></figure>
+      <figure><img src="img/scheme.png" alt="" width="240"><figcaption>Схема (белый фон, чёрный текст)</figcaption></figure>
+      <figure><span class="bg-icon"></span><figcaption>Тёмная иконка через CSS background → светлая</figcaption></figure>
+      <figure><svg width="60" height="60" viewBox="0 0 60 60"><circle cx="30" cy="30" r="24" fill="#111"/></svg><figcaption>Встроенный SVG</figcaption></figure>
+    </div>
+    <h2>Фон-картинка с текстом</h2>
+    <div class="hero">Белый текст на фото</div>
+    <p><button class="btn" onclick="document.getElementById('dlg').showModal()">Открыть модальное окно</button></p>
+    <dialog id="dlg"><p>Модальное окно</p><img src="img/logo-black.png" alt=""><form method="dialog"><button>Закрыть</button></form></dialog>
+    <p id="dyn"></p>
+  </main>
+  <div class="fixed">position: fixed</div>
+  <script>
+    // Image added later, to test dynamic content.
+    setTimeout(() => {
+      const img = new Image();
+      img.src = 'img/logo-black.png?late';
+      document.getElementById('dyn').append('Добавлено позже: ', img);
+    }, 800);
+  </script>
+</body>
+</html>

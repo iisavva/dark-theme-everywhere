@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Тёмная тема</title>
+  <link rel="stylesheet" href="../ui/ui.css">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><img src="../icons/on-32.png" alt="" width="20" height="20"> Тёмная тема</div>
+    <label class="switch" title="Тёмная тема для всех сайтов">
+      <span>Все сайты</span>
+      <input type="checkbox" id="global">
+      <i></i>
+    </label>
+  </header>
+
+  <section class="card" id="siteCard">
+    <div class="host" id="host">—</div>
+    <div class="seg" id="siteSeg" role="radiogroup" aria-label="Тёмная тема на этом сайте">
+      <button type="button" data-v="default" role="radio">Как везде</button>
+      <button type="button" data-v="on" role="radio">Включить</button>
+      <button type="button" data-v="off" role="radio">Выключить</button>
+    </div>
+    <div class="status" id="status"></div>
+  </section>
+
+  <section class="card">
+    <div class="range"><label for="brightness">Яркость</label><output data-for="brightness"></output>
+      <input type="range" id="brightness" min="50" max="150" step="1"></div>
+    <div class="range"><label for="contrast">Контраст</label><output data-for="contrast"></output>
+      <input type="range" id="contrast" min="50" max="150" step="1"></div>
+    <div class="range"><label for="sepia">Сепия</label><output data-for="sepia"></output>
+      <input type="range" id="sepia" min="0" max="100" step="1"></div>
+    <div class="range"><label for="imageBrightness">Яркость картинок</label><output data-for="imageBrightness"></output>
+      <input type="range" id="imageBrightness" min="50" max="100" step="1"></div>
+  </section>
+
+  <section class="card checks">
+    <label class="check"><input type="checkbox" id="smartImages">
+      <span>Умная обработка логотипов и иконок<small>Тёмные логотипы на прозрачном фоне становятся светлыми</small></span></label>
+    <label class="check"><input type="checkbox" id="invertDocImages">
+      <span>Инвертировать светлые картинки с текстом<small>Схемы, скриншоты документов, чёрный текст на белом</small></span></label>
+    <label class="check"><input type="checkbox" id="detectDarkSites">
+      <span>Не трогать сайты, которые уже тёмные</span></label>
+  </section>
+
+  <footer>
+    <a href="#" id="openOptions">Список сайтов и настройки</a>
+    <span class="keys"><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd> — этот сайт</span>
+  </footer>
+
+  <script src="../src/shared.js"></script>
+  <script src="../ui/settings-form.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Уже тёмный сайт</title>
+  <script>
+    if (/[?&]stub\b/.test(location.search)) {
+      document.write('<script src="chrome-stub.js"><\/script><script src="../src/shared.js"><\/script><script src="../src/content.js"><\/script>');
+    }
+  </script>
+  <style>
+    body { background: #121417; color: #ddd; font: 16px Arial, sans-serif; padding: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Сайт, который уже тёмный</h1>
+  <p>Расширение должно его не трогать (если включено «Не трогать сайты, которые уже тёмные»).</p>
+  <img src="img/logo-white.png" alt="">
+</body>
+</html>

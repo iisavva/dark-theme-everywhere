@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Тёмная тема — настройки</title>
+  <link rel="stylesheet" href="../ui/ui.css">
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main>
+    <header class="top">
+      <h1><img src="../icons/on-48.png" alt="" width="28" height="28"> Тёмная тема везде</h1>
+      <label class="switch">
+        <span>Включить для всех сайтов</span>
+        <input type="checkbox" id="global">
+        <i></i>
+      </label>
+    </header>
+
+    <section class="card">
+      <h2>Сайты</h2>
+      <p class="hint">Правило для сайта важнее общего переключателя. Правило для <b>example.com</b>
+        действует и на его поддомены (<b>mail.example.com</b>), если у поддомена нет своего правила.</p>
+      <form id="addForm" class="add">
+        <input id="addHost" type="text" placeholder="example.com" autocomplete="off" spellcheck="false" required>
+        <select id="addState">
+          <option value="on">Всегда тёмная</option>
+          <option value="off">Никогда не тёмная</option>
+        </select>
+        <button type="submit" class="btn">Добавить</button>
+      </form>
+      <table class="sites">
+        <thead><tr><th>Сайт</th><th>Тёмная тема</th><th></th></tr></thead>
+        <tbody id="sites"></tbody>
+      </table>
+      <p class="empty" id="empty">Правил пока нет. Их удобно добавлять из всплывающего окна расширения на нужном сайте.</p>
+    </section>
+
+    <section class="card grid">
+      <div>
+        <h2>Цвета</h2>
+        <div class="range"><label for="brightness">Яркость</label><output data-for="brightness"></output>
+          <input type="range" id="brightness" min="50" max="150" step="1"></div>
+        <div class="range"><label for="contrast">Контраст</label><output data-for="contrast"></output>
+          <input type="range" id="contrast" min="50" max="150" step="1"></div>
+        <div class="range"><label for="sepia">Сепия</label><output data-for="sepia"></output>
+          <input type="range" id="sepia" min="0" max="100" step="1"></div>
+        <div class="range"><label for="grayscale">Оттенки серого</label><output data-for="grayscale"></output>
+          <input type="range" id="grayscale" min="0" max="100" step="1"></div>
+        <div class="range"><label for="imageBrightness">Яркость картинок и видео</label><output data-for="imageBrightness"></output>
+          <input type="range" id="imageBrightness" min="50" max="100" step="1"></div>
+        <p class="hint">Двойной щелчок по ползунку возвращает значение по умолчанию.</p>
+      </div>
+      <div>
+        <h2>Картинки и поведение</h2>
+        <label class="check"><input type="checkbox" id="smartImages">
+          <span>Умная обработка логотипов и иконок
+            <small>Расширение смотрит на прозрачность и яркость картинки и на фон за ней. Чёрный логотип
+              на прозрачном фоне, который пропал бы на тёмной странице, становится светлым; фотографии
+              остаются как есть.</small></span></label>
+        <label class="check"><input type="checkbox" id="invertDocImages">
+          <span>Инвертировать светлые картинки с текстом
+            <small>Схемы, графики, скриншоты документов — белый фон станет тёмным, чёрные буквы светлыми.</small></span></label>
+        <label class="check"><input type="checkbox" id="detectDarkSites">
+          <span>Не трогать сайты, которые уже тёмные
+            <small>Иначе тёмный сайт после инверсии стал бы светлым.</small></span></label>
+        <div class="actions">
+          <button type="button" class="btn ghost" id="clearCache">Забыть найденные тёмные сайты</button>
+          <button type="button" class="btn ghost" id="reset">Сбросить настройки</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Горячие клавиши</h2>
+      <p><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd> — переключить тему на текущем сайте,
+        <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd> — для всех сайтов.</p>
+      <p class="hint">Изменить сочетания: <code>chrome://extensions/shortcuts</code> (Chrome, Edge, Яндекс)
+        или «Управление расширениями → ⚙ → Управление горячими клавишами» в Firefox.</p>
+    </section>
+  </main>
+
+  <script src="../src/shared.js"></script>
+  <script src="../ui/settings-form.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>
