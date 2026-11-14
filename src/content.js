@@ -58,13 +58,15 @@
 
   /* ------------------------------------------------------------------ CSS */
 
-  const pct = (v, def) => ((Number.isFinite(+v) ? +v : def) / 100).toFixed(2);
+  // Rounded to 5 % steps: the filter is visible to the page, and exact slider values would make
+  // users easier to tell apart (fingerprinting). The sliders use the same step.
+  const pct = (v, def) => ((Math.round((Number.isFinite(+v) ? +v : def) / 5) * 5) / 100).toFixed(2);
 
   function buildCSS(full) {
     const s = settings;
     const F = `${INV} brightness(${pct(s.brightness, 100)}) contrast(${pct(s.contrast, 85)}) ` +
       `sepia(${pct(s.sepia, 0)}) grayscale(${pct(s.grayscale, 0)})`;
-    const K = `brightness(${pct(s.imageBrightness, 92)}) ${INV}`;
+    const K = `brightness(${pct(s.imageBrightness, 90)}) ${INV}`;
     const media = ['img', 'input[type="image"]', 'video', 'canvas', 'embed', 'object'];
     const r = [];
     if (full) {
@@ -268,7 +270,12 @@
   function getStats(src, img) {
     if (statsCache.has(src)) return statsCache.get(src);
     let p = null;
-    if (img && img.complete && (img.naturalWidth || /\.svg/i.test(src))) {
+    // Pixels of the page's own <img> are read only for same-origin pictures. A cross-origin one was
+    // loaded with the user's cookies; in browsers where an extension may read it (Firefox), the
+    // decision below would leak a private picture to the page. Those go through the background
+    // worker, which downloads the picture again without cookies.
+    const readable = /^(data|blob):/i.test(src) || sameOrigin(src);
+    if (readable && img && img.complete && (img.naturalWidth || /\.svg/i.test(src))) {
       try {
         p = Promise.resolve(sample(img, img.naturalWidth || 64, img.naturalHeight || 64));
       } catch (e) {
@@ -313,6 +320,11 @@
     const finalBg = 1 - behind; // what the background looks like after inversion
     const keepC = Math.abs(st.lum - finalBg);
     const flipC = Math.abs(1 - st.lum - finalBg);
+    // A picture that blends into its original background (white text on a white page) must not
+    // become readable in the dark theme: otherwise anyone who can post a picture (a forum, comments)
+    // could show dark-theme users content that moderators never see. Keep it as hidden as it was.
+    const blends = Math.abs(st.lum - behind) < 0.12 && (behind > 0.5 ? st.dark < 0.03 : st.light < 0.03);
+    if (blends) return keepC <= flipC ? 'keep' : 'flip';
     const margin = st.colorful > 0.45 ? 0.3 : 0.1;
     if (flipC > keepC + margin) return 'flip';
     if (keepC > flipC + margin) return 'keep';
@@ -514,8 +526,14 @@
   }
 
   let persistTimer = 0;
+  // Storage is shared with normal windows and outlives "clear history": a private window must not
+  // leave the sites visited in it there.
+  const incognito = (() => {
+    try { return !!(chrome.extension && chrome.extension.inIncognitoContext); } catch (e) { return false; }
+  })();
+
   function persistNativeDark() {
-    if (!host || !alive()) return;
+    if (!host || incognito || !alive()) return;
     clearTimeout(persistTimer);
     persistTimer = setTimeout(async () => {
       try {

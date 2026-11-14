@@ -16,7 +16,8 @@
       if (input.type === 'checkbox') input.checked = !!settings[key];
       else if (input.type === 'range') input.value = settings[key];
       const out = document.querySelector(`output[data-for="${key}"]`);
-      if (out) out.textContent = settings[key] + '%';
+      // A range input snaps old values to its step, so show what the slider shows.
+      if (out) out.textContent = (input.type === 'range' ? input.value : settings[key]) + '%';
     }
   }
 
