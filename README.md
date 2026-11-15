@@ -63,7 +63,7 @@ git clone https://github.com/iisavva/dark-theme-everywhere.git
 3. In `about:addons` → the extension → "Permissions", allow access to all sites
    (Firefox turns it off by default for MV3 extensions).
 
-**Safari 16.4+ (macOS)**
+**Safari 16.4+ (macOS 11 Big Sur or newer)**
 
 Safari extensions are shipped inside a macOS app. Releases contain
 `Dark-Theme-Everywhere-Safari.zip` with an **unsigned** app (signing needs a paid Apple

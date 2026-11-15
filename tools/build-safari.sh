@@ -80,6 +80,7 @@ xcodebuild \
   -scheme "$scheme" \
   -configuration Release \
   -derivedDataPath "$derived" \
+  MACOSX_DEPLOYMENT_TARGET=11.0 \
   MARKETING_VERSION="$version" \
   CURRENT_PROJECT_VERSION="$version" \
   "${sign_args[@]}" \
