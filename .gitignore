@@ -2,3 +2,4 @@ dist/
 keys/
 *.pem
 __pycache__/
+USER_TASKS.md
