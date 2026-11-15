@@ -41,6 +41,7 @@
   let rootLum = 1;          // luminance of the original page background
   let rootBg = '#fff';      // original page background colour (canvas)
   let rootBgChanged = false;
+  const artBackdrops = new Map(); // backdrop colour of an SVG illustration -> attribute value
   let styleEl = null;
   let observer = null;
   let themeObserver = null;
@@ -99,6 +100,10 @@
     // (The attribute is doubled to outrank `canvas:not([data-dt-f])` above.)
     r.push(`[${COLOR}][${COLOR}], input[type="color"] { filter: ${INV} !important; }`);
     r.push(`[${BOARD}] { background-color: ${rootBg} !important; }`);
+    // SVG illustrations shown in original colours on their original background (see processSvgArt).
+    for (const [css, token] of artBackdrops) {
+      r.push(`svg[${KEEP}="${token}"] { background-color: ${css} !important; }`);
+    }
     // Video players: original colours, the video itself not dimmed either.
     r.push(`[${PLAYER}][${PLAYER}] { filter: ${INV} !important; }`);
     r.push(`[${FLIP}] { filter: none !important; }`);
@@ -215,21 +220,28 @@
 
   /** Luminance of the original background behind an element, or null if unknown (a picture). */
   function backdropLum(el) {
+    const b = backdrop(el);
+    return b ? b.lum : null;
+  }
+
+  /** The original background behind an element: { lum, css }, or null if unknown (a picture). */
+  function backdrop(el) {
+    const rgb = (c) => ({ lum: luminance(c), css: `rgb(${c.r}, ${c.g}, ${c.b})` });
     for (let n = el; n; n = parentOf(n)) {
-      if (n === document.documentElement) return rootLum;
+      if (n === document.documentElement) return { lum: rootLum, css: rootBg };
       const cs = getComputedStyle(n);
       const c = parseColor(cs.backgroundColor);
-      if (c && c.a >= 0.6) return luminance(c);
+      if (c && c.a >= 0.6) return rgb(c);
       if (n !== el) {
         const bi = cs.backgroundImage;
         if (bi && bi !== 'none') {
           const g = gradientColor(bi);
-          if (g) return luminance(g);
+          if (g) return rgb(g);
           if (bi.includes('url(')) return null;
         }
       }
     }
-    return rootLum;
+    return { lum: rootLum, css: rootBg };
   }
 
   function insideKeep(el) {
@@ -761,15 +773,22 @@
     return c && c.a >= 0.3 ? c : null;
   }
 
+  /**
+   * Whether an SVG is a colourful illustration: null if not, otherwise { backdrop } where backdrop
+   * is the original background to show behind it ({ css }) or null when none is needed.
+   */
   function isSvgArt(svg) {
     const r = svg.getBoundingClientRect();
-    if (r.width < 40 || r.height < 40 || insideKeep(svg)) return false;
-    if (svg.querySelectorAll('text, foreignObject').length > 2) return false;
-    if (svg.querySelector('image')) return true;
+    if (r.width < 40 || r.height < 40 || insideKeep(svg)) return null;
+    if (svg.querySelectorAll('text, foreignObject').length > 2) return null;
+    const under = backdrop(parentOf(svg));
+    // A raster <image> is not analysed: it may hide content in its transparent parts, so it
+    // always gets its original background.
+    if (svg.querySelector('image')) return { backdrop: under };
     const shapes = svg.querySelectorAll('path, circle, rect, ellipse, polygon, polyline');
-    if (shapes.length < 8) return false;
+    if (shapes.length < 8) return null;
     const colors = new Set();
-    const behind = backdropLum(parentOf(svg));
+    const behind = under ? under.lum : null;
     let counted = 0, colorful = 0, blending = 0;
     for (let i = 0; i < shapes.length && counted < 200; i++) {
       const cs = getComputedStyle(shapes[i]);
@@ -785,15 +804,39 @@
     }
     // Shapes that blend into the original background (white on white) must stay as hidden as they
     // were: shown in original colours on the dark page they would appear (content that moderators
-    // of a site with user posts never saw). Then the SVG keeps the theme, like the rest of the page.
-    if (counted && blending / counted > 0.3) return false;
-    return counted >= 8 && colors.size >= 5 && (colorful / counted >= 0.25 || colors.size >= 8);
+    // of a site with user posts never saw). Mostly blending: the SVG keeps the theme, like the rest
+    // of the page. A few such shapes (one large shape can hold a whole message): the illustration
+    // gets its original background, so it looks exactly as on the original page.
+    if (counted && blending / counted > 0.3) return null;
+    if (!(counted >= 8 && colors.size >= 5 && (colorful / counted >= 0.25 || colors.size >= 8))) return null;
+    return { backdrop: blending ? under : null };
+  }
+
+  /** Attribute value that gives an SVG illustration its original background (see buildCSS). */
+  function backdropToken(css) {
+    let token = artBackdrops.get(css);
+    if (token) return token;
+    if (artBackdrops.size >= 32) return null;
+    token = 'bg' + artBackdrops.size;
+    artBackdrops.set(css, token);
+    update(); // adds the rule for the new colour
+    return token;
   }
 
   function processSvgArt(svg) {
     const art = isSvgArt(svg);
-    if (art && !svg.hasAttribute(KEEP)) svg.setAttribute(KEEP, '');
-    else if (!art && svg.hasAttribute(KEEP)) svg.removeAttribute(KEEP);
+    let value = null; // null: keep the theme
+    if (art) {
+      // Once given a background by our own rule, the SVG is not mistaken for one with its own.
+      const ours = /^bg\d+$/.test(svg.getAttribute(KEEP) || '');
+      if (!art.backdrop || (!ours && opaqueBg(svg))) value = ''; // nothing can show through the SVG
+      else value = backdropToken(art.backdrop.css); // null if too many colours: keep the theme
+    }
+    if (value === null) {
+      if (svg.hasAttribute(KEEP)) svg.removeAttribute(KEEP);
+    } else if (svg.getAttribute(KEEP) !== value) {
+      svg.setAttribute(KEEP, value);
+    }
   }
 
   /* -------------------------------------------------------- work queue */
