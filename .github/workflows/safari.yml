@@ -1,0 +1,53 @@
+name: Safari
+
+# Builds the Safari version on macOS: converts the extension into an Xcode project with
+# safari-web-extension-converter and builds the (unsigned) app. The result is uploaded as a
+# workflow artifact.
+
+on:
+  pull_request:
+    paths:
+      - 'manifest.json'
+      - 'src/**'
+      - 'popup/**'
+      - 'options/**'
+      - 'ui/**'
+      - 'icons/**'
+      - 'tools/build-safari.sh'
+      - 'tools/safari/**'
+      - '.github/workflows/safari.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'manifest.json'
+      - 'src/**'
+      - 'popup/**'
+      - 'options/**'
+      - 'ui/**'
+      - 'icons/**'
+      - 'tools/build-safari.sh'
+      - 'tools/safari/**'
+      - '.github/workflows/safari.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Build Safari app
+        run: bash tools/build-safari.sh
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dark-theme-everywhere-safari
+          path: |
+            dist/safari/Dark-Theme-Everywhere-Safari.zip
+            dist/safari/Dark-Theme-Everywhere-Safari.zip.sha256
