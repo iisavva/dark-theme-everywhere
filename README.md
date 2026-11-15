@@ -25,6 +25,10 @@ The extension's interface is in Russian; Russian labels are given in parentheses
   Excalidraw, draw.io, FigJam and the like) the drawing area is shown in original colours too, on the
   page's original background, so a stroke looks exactly like the colour picked for it; the editor's
   UI around it stays dark. `<input type="color">` keeps its colour as well.
+- **Video players are left as on the site.** A player on the page (the video with its controls,
+  progress bar, title and captions) is not themed, and neither are players embedded in an iframe
+  (YouTube, Vimeo, Rutube, VK Video, OK, Dzen, Dailymotion, Twitch and others, or any frame that is
+  mostly one video).
 - **Sites that are already dark** are detected and left alone (otherwise they would turn light).
   To force the theme on such a site, press "On" («Включить»).
 - Brightness, contrast, sepia, grayscale and image brightness settings.

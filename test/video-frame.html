@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Плеер во фрейме</title>
+  <script>
+    if (/[?&]stub\b/.test(location.search)) {
+      document.write('<script src="chrome-stub.js"><\/script><script src="../src/shared.js"><\/script><script src="../src/content.js"><\/script>');
+    }
+  </script>
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+    video { width: 100%; height: 100%; display: block; }
+    .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 36px; background: #000c; color: #fff;
+      font: 13px Arial; display: flex; align-items: center; padding: 0 10px; }
+  </style>
+</head>
+<body>
+  <video poster="img/photo.jpg" muted></video>
+  <div class="bar">▶ 1:05 / 4:30 — встроенный плеер</div>
+</body>
+</html>

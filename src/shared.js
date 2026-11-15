@@ -71,6 +71,44 @@
     return sites;
   }
 
+  /*
+   * Pages of video players that sites embed in an iframe. Such a frame is shown as on the site:
+   * the dark theme of the page around it is cancelled for the whole frame.
+   * host suffix -> path prefix ('' = any path)
+   */
+  const PLAYER_EMBEDS = [
+    ['youtube.com', '/embed/'],
+    ['youtube-nocookie.com', '/embed/'],
+    ['player.vimeo.com', ''],
+    ['rutube.ru', '/play/embed/'],
+    ['rutube.ru', '/embed/'],
+    ['vk.com', '/video_ext.php'],
+    ['vk.ru', '/video_ext.php'],
+    ['vkvideo.ru', '/video_ext.php'],
+    ['ok.ru', '/videoembed/'],
+    ['dzen.ru', '/embed/'],
+    ['dailymotion.com', '/embed/'],
+    ['geo.dailymotion.com', '/player'],
+    ['player.twitch.tv', ''],
+    ['clips.twitch.tv', '/embed'],
+    ['kinescope.io', '/embed/'],
+    ['fast.wistia.net', '/embed/'],
+    ['loom.com', '/embed/'],
+    ['streamable.com', '/e/'],
+    ['coub.com', '/embed/'],
+    ['player.bilibili.com', ''],
+    ['facebook.com', '/plugins/video.php']
+  ];
+
+  function isPlayerEmbedUrl(url) {
+    let u;
+    try { u = new URL(url); } catch (e) { return false; }
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+    const h = u.hostname.toLowerCase().replace(/^www\./, '');
+    return PLAYER_EMBEDS.some(([suffix, path]) =>
+      (h === suffix || h.endsWith('.' + suffix)) && u.pathname.startsWith(path));
+  }
+
   async function loadSettings(extra) {
     const s = await chrome.storage.local.get(Object.assign({}, DEFAULTS, extra || {}));
     if (!s.sites || typeof s.sites !== 'object') s.sites = {};
@@ -132,6 +170,7 @@
     findOverride,
     isEnabledFor,
     sitesWith,
+    isPlayerEmbedUrl,
     loadSettings,
     sampleSize,
     imageStats

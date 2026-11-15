@@ -26,15 +26,18 @@
   const FLIP = 'data-dt-f'; // image shown inverted (dark logo -> light)
   const COLOR = 'data-dt-c'; // colour swatch or drawing surface shown in its real colours
   const BOARD = 'data-dt-b'; // drawing surface that gets the page's original background behind it
+  const PLAYER = 'data-dt-p'; // video player shown as on the site (video, controls, captions)
   const STYLE_ID = 'dark-theme-everywhere-style';
   const INV = 'invert(1) hue-rotate(180deg)';
   const isTop = window === window.top;
   const host = isTop ? D.hostFromUrl(location.href) : null;
 
   let settings = null;
-  let mode = null;          // null | 'full' (top page) | 'images' (iframe)
+  let mode = null;          // null | 'full' (top page) | 'images' (iframe) | 'player' (player iframe)
   let nativeDark = false;   // the site is dark by itself
   let topActive = false;    // iframe: the top page is themed
+  // iframe: a video player embedded by the page (YouTube, Vimeo…, or a frame that is mostly video)
+  let playerFrame = !isTop && D.isPlayerEmbedUrl(location.href);
   let rootLum = 1;          // luminance of the original page background
   let rootBg = '#fff';      // original page background colour (canvas)
   let rootBgChanged = false;
@@ -64,7 +67,16 @@
   // users easier to tell apart (fingerprinting). The sliders use the same step.
   const pct = (v, def) => ((Math.round((Number.isFinite(+v) ? +v : def) / 5) * 5) / 100).toFixed(2);
 
-  function buildCSS(full) {
+  function buildCSS(cssMode) {
+    if (cssMode === 'player') {
+      // A player iframe: the page around it inverts the whole frame, so the frame cancels that
+      // for everything in it. Fullscreen elements are painted outside <html> and need it too.
+      return [
+        `html { filter: ${INV} !important; }`,
+        `:fullscreen { filter: ${INV} !important; }`
+      ].join('\n');
+    }
+    const full = cssMode === 'full';
     const s = settings;
     const F = `${INV} brightness(${pct(s.brightness, 100)}) contrast(${pct(s.contrast, 85)}) ` +
       `sepia(${pct(s.sepia, 0)}) grayscale(${pct(s.grayscale, 0)})`;
@@ -87,11 +99,17 @@
     // (The attribute is doubled to outrank `canvas:not([data-dt-f])` above.)
     r.push(`[${COLOR}][${COLOR}], input[type="color"] { filter: ${INV} !important; }`);
     r.push(`[${BOARD}] { background-color: ${rootBg} !important; }`);
+    // Video players: original colours, the video itself not dimmed either.
+    r.push(`[${PLAYER}][${PLAYER}] { filter: ${INV} !important; }`);
     r.push(`[${FLIP}] { filter: none !important; }`);
-    const restored = [`[${KEEP}]`, `[${COLOR}]`];
+    const restored = [`[${KEEP}]`, `[${COLOR}]`, `[${PLAYER}]`];
     const inner = media.concat(restored, `[${FLIP}]`, 'input[type="color"]');
     r.push(`${restored.flatMap((a) => inner.map((m) => `${a} ${m}`)).join(', ')} { filter: none !important; }`);
-    if (full) r.push('video:fullscreen, img:fullscreen, canvas:fullscreen { filter: none !important; }');
+    if (full) {
+      r.push('video:fullscreen, img:fullscreen, canvas:fullscreen { filter: none !important; }');
+      // A fullscreen player is painted outside <html>, so it is not inverted to begin with.
+      r.push(`[${PLAYER}][${PLAYER}]:fullscreen { filter: none !important; }`);
+    }
     return r.join('\n');
   }
 
@@ -110,7 +128,7 @@
 
   function computeMode() {
     if (!settings) return null;
-    if (!isTop) return topActive ? 'images' : null;
+    if (!isTop) return topActive ? (playerFrame ? 'player' : 'images') : null;
     if (!host || !D.isEnabledFor(settings, host)) return null;
     const ov = D.findOverride(settings, host);
     const forced = !!(ov && ov.value);
@@ -128,9 +146,9 @@
       stopObserving();
     } else {
       ensureStyle();
-      const css = buildCSS(mode === 'full');
+      const css = buildCSS(mode);
       if (styleEl.textContent !== css) styleEl.textContent = css;
-      const shadowCss = buildCSS(false);
+      const shadowCss = buildCSS(mode === 'player' ? 'player' : 'images');
       shadowStyles.forEach((st) => { if (st.textContent !== shadowCss) st.textContent = shadowCss; });
       startObserving();
       if (changed || forceRescan) fullScan();
@@ -146,7 +164,7 @@
     seen = new WeakMap();
     paletteSeen = false;
     boardFound = false;
-    const attrs = [KEEP, FLIP, COLOR, BOARD];
+    const attrs = [KEEP, FLIP, COLOR, BOARD, PLAYER];
     const sel = attrs.map((a) => `[${a}]`).join(', ');
     const clear = (el) => attrs.forEach((a) => el.removeAttribute(a));
     document.querySelectorAll(sel).forEach(clear);
@@ -614,6 +632,43 @@
     }
   }
 
+  /* ------------------------------------------------------------- video players */
+  /*
+   * A video is inverted back on its own, but its player is more than the <video>: controls,
+   * progress bar, captions, title and preview overlays sit around and over it. Those were themed
+   * with the page, so the player looked broken. The player container (the outermost ancestor of
+   * about the video's size, a control bar below it included) is shown as on the site instead.
+   * In an iframe that is mostly one video the whole frame is treated as a player.
+   */
+  const playerOf = new WeakMap(); // video -> marked container
+
+  function processVideo(v) {
+    const prev = playerOf.get(v);
+    const r = v.getBoundingClientRect();
+    let container = null;
+    if (r.width >= 160 && r.height >= 90) {
+      container = v;
+      for (let a = v.parentElement, i = 0; a && i < 8; a = a.parentElement, i++) {
+        if (a === document.body || a === document.documentElement) break;
+        const b = a.getBoundingClientRect();
+        if (b.width > r.width * 1.1 + 16 || b.height > r.height * 1.15 + 80) break;
+        if ((a.textContent || '').trim().length > 500) break; // an article around the video
+        container = a;
+      }
+    }
+    if (prev && prev !== container) prev.removeAttribute(PLAYER);
+    if (container) {
+      container.setAttribute(PLAYER, '');
+      playerOf.set(v, container);
+    } else {
+      playerOf.delete(v);
+    }
+    if (!isTop && !playerFrame && innerWidth > 0 && r.width * r.height >= innerWidth * innerHeight * 0.5) {
+      playerFrame = true;
+      update(true);
+    }
+  }
+
   const SKIP = new Set(['script', 'style', 'link', 'meta', 'head', 'title', 'noscript', 'template', 'br', 'source', 'track', 'option']);
 
   function processElement(el) {
@@ -622,6 +677,7 @@
     const tag = el.localName;
     if (SKIP.has(tag)) return;
     if (tag === 'img' || (tag === 'input' && el.type === 'image')) { processImg(el); return; }
+    if (tag === 'video') { processVideo(el); return; }
     if (!settings.smartImages) return;
     if (tag === 'canvas' || tag === 'svg') {
       if ((tag === 'canvas' || paletteSeen) && isLarge(el)) {
@@ -649,7 +705,8 @@
 
   function runQueue(deadline) {
     scheduled = false;
-    if (!mode) { queue.clear(); return; }
+    // A player frame is shown as on the site as a whole: nothing to analyse in it.
+    if (!mode || mode === 'player') { queue.clear(); return; }
     swatchMemo = new Map(); // sizes and colours may have changed since the last run
     const start = performance.now();
     for (const el of queue) {
@@ -700,16 +757,24 @@
     if (mode && t && t.localName === 'img') processImg(t);
   }
 
+  // A video often gets its real size only when its metadata has loaded.
+  function onVideoMeta(e) {
+    const t = e.target;
+    if (mode && mode !== 'player' && t && t.localName === 'video') enqueue(t);
+  }
+
   function startObserving() {
     if (observer) return;
     observer = new MutationObserver(onMutations);
     observer.observe(document, OBS_OPTS);
     document.addEventListener('load', onLoadCapture, true);
+    document.addEventListener('loadedmetadata', onVideoMeta, true);
   }
 
   function stopObserving() {
     if (observer) { observer.disconnect(); observer = null; }
     document.removeEventListener('load', onLoadCapture, true);
+    document.removeEventListener('loadedmetadata', onVideoMeta, true);
     queue.clear();
     shadowStyles.forEach((st) => st.remove());
     shadowStyles.clear();
@@ -720,7 +785,7 @@
     if (shadowSeen.has(sr) || !observer) return;
     shadowSeen.add(sr);
     const st = document.createElement('style');
-    st.textContent = buildCSS(false);
+    st.textContent = buildCSS(mode === 'player' ? 'player' : 'images');
     sr.appendChild(st);
     shadowStyles.add(st);
     sr.addEventListener('load', onLoadCapture, true);

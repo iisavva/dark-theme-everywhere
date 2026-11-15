@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Тест: видеоплееры</title>
+  <script>
+    if (/[?&]stub\b/.test(location.search)) {
+      document.write('<script src="chrome-stub.js"><\/script><script src="../src/shared.js"><\/script><script src="../src/content.js"><\/script>');
+    }
+  </script>
+  <style>
+    body { font: 15px Arial, sans-serif; color: #222; margin: 24px; max-width: 900px; }
+    .player { position: relative; width: 480px; height: 270px; background: #000; }
+    .player video { width: 100%; height: 100%; display: block; }
+    .player .title { position: absolute; left: 0; right: 0; top: 0; padding: 8px; color: #fff;
+      background: linear-gradient(#000a, transparent); }
+    .player .controls { position: absolute; left: 0; right: 0; bottom: 0; height: 40px; display: flex;
+      align-items: center; gap: 10px; padding: 0 10px; background: linear-gradient(transparent, #000c); color: #fff; }
+    .player .bar { flex: 1; height: 4px; background: #fff5; }
+    .player .bar i { display: block; width: 30%; height: 100%; background: #f00; }
+    .player button { background: none; border: 0; color: #fff; font-size: 18px; }
+    iframe { border: 0; width: 480px; height: 270px; display: block; }
+  </style>
+</head>
+<body>
+  <h1>Статья с видео</h1>
+  <p>Свой плеер сайта: кнопки, полоса прогресса и заголовок поверх видео должны выглядеть как на сайте.</p>
+  <div class="player" id="player">
+    <video poster="img/photo.jpg" muted></video>
+    <div class="title">Заголовок видео</div>
+    <div class="controls"><button>▶</button><div class="bar"><i></i></div><span>0:42 / 2:15</span><button id="fs" onclick="document.fullscreenElement ? document.exitFullscreen() : document.getElementById('player').requestFullscreen()">⛶</button></div>
+  </div>
+
+  <p>Встроенный плеер в iframe (кадр почти целиком занят видео):</p>
+  <iframe id="frame" src="video-frame.html?stub"></iframe>
+
+  <p>Маленькое видео-«гифка» в тексте — обычная картинка, не плеер:
+    <video id="gif" poster="img/logo-color.png" width="120" height="40" muted></video></p>
+</body>
+</html>

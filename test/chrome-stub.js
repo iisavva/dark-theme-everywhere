@@ -7,7 +7,8 @@
   window.chrome = {
     runtime: {
       id: 'stub',
-      sendMessage: () => Promise.resolve(null),
+      // An iframe asks whether the page around it is themed: in tests it always is.
+      sendMessage: (msg) => Promise.resolve(msg && msg.type === 'getTopState' ? { active: true } : null),
       onMessage: { addListener: (f) => msgListeners.push(f) }
     },
     storage: {
