@@ -1,7 +1,7 @@
 # Dark Theme Everywhere
 
 A browser extension (Manifest V3) that makes any website dark.
-Works in Chrome, Edge, Yandex Browser, Opera, Brave and Firefox 121+.
+Works in Chrome, Edge, Yandex Browser, Opera, Brave, Firefox 121+ and Safari 16.4+ (macOS).
 
 The extension's interface is in Russian; Russian labels are given in parentheses below.
 
@@ -62,6 +62,52 @@ git clone https://github.com/iisavva/dark-theme-everywhere.git
 2. Click "Load Temporary Add-on…" and select `manifest.json`.
 3. In `about:addons` → the extension → "Permissions", allow access to all sites
    (Firefox turns it off by default for MV3 extensions).
+
+**Safari 16.4+ (macOS 11 Big Sur or newer)**
+
+Safari extensions are shipped inside a macOS app. Releases contain
+`Dark-Theme-Everywhere-Safari.zip` with an **unsigned** app (signing needs a paid Apple
+Developer account), so Safari loads it only in developer mode:
+
+1. Unpack the zip and move `Dark Theme Everywhere.app` to `Applications`.
+2. The app is not notarised, so macOS blocks the first launch. Allow it in
+   System Settings → Privacy & Security → "Open Anyway", or run
+   `xattr -dr com.apple.quarantine "/Applications/Dark Theme Everywhere.app"`.
+3. Open the app once.
+4. In Safari: Settings → Advanced → turn on "Show features for web developers"
+   (older versions: "Show Develop menu in menu bar"), then Develop → "Allow Unsigned Extensions".
+5. Safari → Settings → Extensions → enable "Dark Theme Everywhere" and set
+   "Always Allow on Every Website" for it.
+
+"Allow Unsigned Extensions" is reset every time Safari quits, so step 4 has to be repeated
+after each Safari restart. A signed build (see below) does not have this limitation.
+
+Keyboard shortcuts on a Mac use Option instead of Alt: `Option+Shift+D` / `Option+Shift+G`.
+
+## Building the Safari version
+
+Needs a Mac with Xcode 14.3+:
+
+```bash
+bash tools/build-safari.sh
+```
+
+It writes the Safari manifest (`tools/safari/manifest.js`: service worker only, no
+Firefox-specific keys), converts the extension with `safari-web-extension-converter` and builds
+the app. Output in `dist/safari/`: the Xcode project, the app and
+`Dark-Theme-Everywhere-Safari.zip`.
+
+To sign with your Apple Developer team instead of building an unsigned app:
+
+```bash
+SIGN=1 TEAM_ID=ABCDE12345 bash tools/build-safari.sh
+```
+
+For the App Store, open the generated Xcode project in `dist/safari/Dark Theme Everywhere/`,
+choose your team and use Product → Archive.
+
+The `Safari` GitHub Actions workflow builds the app on macOS for every change, and the release
+workflow adds `Dark-Theme-Everywhere-Safari.zip` to each release.
 
 ## Building .crx and .zip
 
