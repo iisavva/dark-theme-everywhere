@@ -19,6 +19,12 @@ The extension's interface is in Russian; Russian labels are given in parentheses
   - the decision is based on the contrast between the image and the actual background behind it;
     it works for `<img>`, SVG files and icons set via CSS `background-image`;
   - light pictures with black text (diagrams, document screenshots) can optionally be inverted.
+- **Colour palettes keep their real colours.** A group of small clickable colour swatches (brush
+  colours on an online whiteboard, colour choice in a shop) is shown in original colours, so a black
+  swatch stays black. On whiteboards and editors (a palette plus a large canvas or SVG: Holst, Miro,
+  Excalidraw, draw.io, FigJam and the like) the drawing area is shown in original colours too, on the
+  page's original background, so a stroke looks exactly like the colour picked for it; the editor's
+  UI around it stays dark. `<input type="color">` keeps its colour as well.
 - **Sites that are already dark** are detected and left alone (otherwise they would turn light).
   To force the theme on such a site, press "On" («Включить»).
 - Brightness, contrast, sepia, grayscale and image brightness settings.
@@ -204,5 +210,7 @@ browser API. With the extension installed, open the page without `?stub`.
 
 - Colour emoji in text are inverted along with the text.
 - Images inside a closed Shadow DOM are not processed.
+- Whiteboards that draw every shape as a separate small SVG instead of one canvas or SVG (tldraw,
+  for example) are not recognised as a drawing area: there the shapes are themed with the page.
 - The browser does not allow extensions to run on internal pages (`chrome://`, the extension store).
 - For local files (`file://`) in Chrome, turn on "Allow access to file URLs" on the extension's card.

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Тест: онлайн-доска</title>
+  <script>
+    if (/[?&]stub\b/.test(location.search)) {
+      document.write('<script src="chrome-stub.js"><\/script><script src="../src/shared.js"><\/script><script src="../src/content.js"><\/script>');
+    }
+  </script>
+  <style>
+    html, body { margin: 0; height: 100%; font: 14px Arial, sans-serif; color: #222; }
+    body { background: #fff; overflow: hidden; }
+    /* transparent board canvas over the white page, like many whiteboards */
+    #board { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .toolbar { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); background: #fff;
+      border: 1px solid #ddd; border-radius: 12px; padding: 8px; display: grid; gap: 8px; box-shadow: 0 2px 8px #0002; }
+    .tool { width: 36px; height: 36px; border: 0; border-radius: 8px; background: #f2f2f2; cursor: pointer; }
+    .current { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #ccc; cursor: pointer; margin: 4px; }
+    .popup { position: absolute; left: 70px; top: 50%; transform: translateY(-50%); background: #fff;
+      border: 1px solid #ddd; border-radius: 12px; padding: 12px; width: 170px; box-shadow: 0 2px 8px #0002; display: none; }
+    .popup.open { display: block; }
+    .colors { display: grid; grid-template-columns: repeat(5, 26px); gap: 8px; margin: 10px 0; }
+    .sw { width: 26px; height: 26px; border-radius: 50%; border: 1px solid #0002; cursor: pointer; padding: 0; }
+    .rainbow { width: 26px; height: 26px; border-radius: 50%; cursor: pointer;
+      background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red); }
+  </style>
+</head>
+<body>
+  <canvas id="board"></canvas>
+  <div class="toolbar">
+    <button class="tool" title="Кисть"></button>
+    <button class="tool" title="Ластик"></button>
+    <div class="current" id="current" style="background:#111" title="Текущий цвет"></div>
+  </div>
+  <div class="popup" id="popup">
+    <div>Толщина <span style="float:right">2px</span></div>
+    <input type="range" style="width:100%">
+    <div class="colors" id="colors"></div>
+    <div class="rainbow" title="Свой цвет"></div>
+  </div>
+  <script>
+    const colors = ['#1a1a1a', '#6b6b6b', '#ababab', '#e3e3e3', '#ffffff',
+      '#f04a24', '#f7a12b', '#fcc419', '#15a04a', '#1c8ef0',
+      '#f9c5c2', '#fcd4a6', '#ffe7a3', '#b9edc9', '#bfdcf7', '#9d4bf0', '#e2c6fa'];
+    const box = document.getElementById('colors');
+    for (const c of colors) {
+      const b = document.createElement('button');
+      b.className = 'sw';
+      b.style.background = c;
+      b.onclick = () => { document.getElementById('current').style.background = c; draw(c); };
+      box.append(b);
+    }
+    const cv = document.getElementById('board');
+    cv.width = innerWidth; cv.height = innerHeight;
+    const ctx = cv.getContext('2d');
+    let y = 120;
+    function draw(c) {
+      ctx.strokeStyle = c; ctx.lineWidth = 8; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(300, y); ctx.bezierCurveTo(450, y - 60, 600, y + 60, 750, y); ctx.stroke();
+      y += 40;
+    }
+    ['#1a1a1a', '#f04a24', '#1c8ef0'].forEach(draw);
+    document.getElementById('current').onclick = () => document.getElementById('popup').classList.toggle('open');
+    // open the palette after a moment, as a user would
+    setTimeout(() => document.getElementById('popup').classList.add('open'), 600);
+  </script>
+</body>
+</html>

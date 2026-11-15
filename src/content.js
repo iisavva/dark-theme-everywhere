@@ -24,6 +24,8 @@
   const D = globalThis.DT;
   const KEEP = 'data-dt-k'; // element shown in original colours (inverted back)
   const FLIP = 'data-dt-f'; // image shown inverted (dark logo -> light)
+  const COLOR = 'data-dt-c'; // colour swatch or drawing surface shown in its real colours
+  const BOARD = 'data-dt-b'; // drawing surface that gets the page's original background behind it
   const STYLE_ID = 'dark-theme-everywhere-style';
   const INV = 'invert(1) hue-rotate(180deg)';
   const isTop = window === window.top;
@@ -81,8 +83,13 @@
       r.push(`:fullscreen:not(video):not(img):not(canvas) { filter: ${F} !important; }`);
     }
     r.push(`${media.map((m) => m + `:not([${FLIP}])`).join(', ')}, [${KEEP}] { filter: ${K} !important; }`);
+    // Colour swatches and drawing surfaces: original colours, without the photo dimming.
+    r.push(`[${COLOR}], input[type="color"] { filter: ${INV} !important; }`);
+    r.push(`[${BOARD}] { background-color: ${rootBg} !important; }`);
     r.push(`[${FLIP}] { filter: none !important; }`);
-    r.push(`${media.concat(`[${KEEP}]`, `[${FLIP}]`).map((m) => `[${KEEP}] ${m}`).join(', ')} { filter: none !important; }`);
+    const restored = [`[${KEEP}]`, `[${COLOR}]`];
+    const inner = media.concat(restored, `[${FLIP}]`, 'input[type="color"]');
+    r.push(`${restored.flatMap((a) => inner.map((m) => `${a} ${m}`)).join(', ')} { filter: none !important; }`);
     if (full) r.push('video:fullscreen, img:fullscreen, canvas:fullscreen { filter: none !important; }');
     return r.join('\n');
   }
@@ -136,11 +143,14 @@
   function resetMarks() {
     gen++;
     seen = new WeakMap();
-    const sel = `[${KEEP}], [${FLIP}]`;
-    document.querySelectorAll(sel).forEach((el) => { el.removeAttribute(KEEP); el.removeAttribute(FLIP); });
+    paletteSeen = false;
+    const attrs = [KEEP, FLIP, COLOR, BOARD];
+    const sel = attrs.map((a) => `[${a}]`).join(', ');
+    const clear = (el) => attrs.forEach((a) => el.removeAttribute(a));
+    document.querySelectorAll(sel).forEach(clear);
     shadowStyles.forEach((st) => {
       const root = st.getRootNode();
-      if (root && root.querySelectorAll) root.querySelectorAll(sel).forEach((el) => { el.removeAttribute(KEEP); el.removeAttribute(FLIP); });
+      if (root && root.querySelectorAll) root.querySelectorAll(sel).forEach(clear);
     });
   }
 
@@ -374,6 +384,168 @@
     });
   }
 
+  /* ------------------------------------------------ colour swatches / boards */
+  /*
+   * A colour palette (brush colours on an online whiteboard, colour choice in a shop) must show the
+   * real colours: inverted, a black swatch looks white and the user picks the wrong colour.
+   * A palette is a group of at least 4 small clickable elements of similar size, without text,
+   * filled with at least 3 different colours. Its swatches are shown in original colours.
+   *
+   * Pages with such a palette and a large drawing surface (a canvas or an SVG over a third of the
+   * window) are editors: there the drawing surface is shown in original colours too, on the
+   * page's original background, so a stroke looks exactly like the colour chosen for it. The
+   * editor UI around it stays dark. Single round colour buttons (the "current colour" indicator)
+   * also keep their colour there.
+   */
+
+  let paletteSeen = false;
+  let swatchMemo = new Map(); // per queue run: element -> swatch info | null
+  let editorCheck = { at: -Infinity, surfaces: [] };
+
+  function interactive(el) {
+    for (let n = el, i = 0; n && n.nodeType === 1 && i < 3; n = n.parentElement, i++) {
+      const t = n.localName;
+      if (t === 'button' || t === 'a' || t === 'label' || t === 'input' || t === 'select') return true;
+      const role = n.getAttribute('role');
+      if (role && /^(button|radio|option|menuitem|menuitemradio|checkbox|gridcell|switch|tab)$/.test(role)) return true;
+      if (getComputedStyle(n).cursor === 'pointer') return true;
+    }
+    return false;
+  }
+
+  /** Colour key and geometry of a swatch-like element, or null. */
+  function swatchInfo(el) {
+    if (swatchMemo.has(el)) return swatchMemo.get(el);
+    let info = null;
+    try { info = computeSwatch(el); } catch (e) { info = null; }
+    swatchMemo.set(el, info);
+    return info;
+  }
+
+  function computeSwatch(el) {
+    if (el.childElementCount > 2 || SKIP.has(el.localName)) return null;
+    if (el === document.body || el === document.documentElement) return null;
+    let key = null;
+    let round = false;
+    let radius = 0;
+    if (el.localName === 'svg') {
+      const shape = el.querySelector('circle, rect, ellipse, path');
+      if (!shape) return null;
+      const c = parseColor(getComputedStyle(shape).fill);
+      if (!c || c.a < 0.9) return null;
+      key = `${c.r},${c.g},${c.b}`;
+      round = shape.localName === 'circle' || shape.localName === 'ellipse';
+    } else if (el instanceof SVGElement || el.localName === 'img' || el.localName === 'canvas' || el.localName === 'video') {
+      return null;
+    } else {
+      const cs = getComputedStyle(el);
+      const c = parseColor(cs.backgroundColor);
+      const bi = cs.backgroundImage || '';
+      if (c && c.a >= 0.9) key = `${c.r},${c.g},${c.b}`;
+      else if (/gradient\(/.test(bi) && (bi.match(/rgba?\(/g) || []).length >= 4) key = 'gradient';
+      else return null;
+      radius = parseFloat(cs.borderTopLeftRadius) || 0;
+    }
+    if ((el.textContent || '').trim()) return null;
+    const r = el.getBoundingClientRect();
+    if (r.width < 8 || r.height < 8 || r.width > 64 || r.height > 64) return null;
+    if (Math.max(r.width, r.height) / Math.min(r.width, r.height) > 2) return null;
+    if (!round) round = radius >= Math.min(r.width, r.height) * 0.35;
+    return { key, w: r.width, h: r.height, round };
+  }
+
+  /** Looks for a palette around a swatch candidate (up to 3 levels up) and marks it. */
+  function checkPalette(el) {
+    for (let a = el.parentElement, lvl = 0; a && lvl < 3 && a !== document.body; a = a.parentElement, lvl++) {
+      const all = a.querySelectorAll('*');
+      if (all.length > 400) return false;
+      const items = [];
+      for (const n of all) {
+        const s = swatchInfo(n);
+        // A swatch inside another swatch (a ring around a dot) counts once.
+        if (s && !(items.length && items[items.length - 1][0].contains(n))) items.push([n, s]);
+      }
+      if (items.length < 4) continue;
+      const sizes = items.map(([, s]) => s.w).sort((x, y) => x - y);
+      const median = sizes[sizes.length >> 1];
+      const same = items.filter(([, s]) => Math.abs(s.w - median) <= median * 0.35);
+      if (same.length < 4) continue;
+      if (new Set(same.map(([, s]) => s.key)).size < 3) continue;
+      if (same.filter(([n]) => interactive(n)).length < same.length / 2) continue;
+      for (const [n] of same) n.setAttribute(COLOR, '');
+      if (!paletteSeen) {
+        paletteSeen = true;
+        markSurfaces();
+        // Elements checked before the palette was found (the current colour button) get
+        // another look now that the page is known to be an editor.
+        fullScan();
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /** Large canvases and SVGs: the drawing surface of an editor. */
+  function findSurfaces() {
+    const now = performance.now();
+    if (now - editorCheck.at < 1500) return editorCheck.surfaces;
+    const min = innerWidth * innerHeight * 0.33;
+    const surfaces = [];
+    for (const el of document.querySelectorAll('canvas, svg')) {
+      if (el.localName === 'svg' && el.ownerSVGElement) continue; // nested svg
+      const r = el.getBoundingClientRect();
+      if (r.width * r.height >= min) surfaces.push(el);
+      if (surfaces.length > 20) break;
+    }
+    editorCheck = { at: now, surfaces };
+    return surfaces;
+  }
+
+  function markSurfaces() {
+    if (!paletteSeen || mode !== 'full') return;
+    const surfaces = findSurfaces();
+    for (const s of surfaces) {
+      s.setAttribute(COLOR, '');
+      // Only the lowest surface of a stack gets the page background behind it: upper layers of
+      // a layered board are transparent on purpose.
+      const r = s.getBoundingClientRect();
+      const stack = document.elementsFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      // (Hit testing may not see the surface yet, e.g. while the page is still laying out;
+      // then nothing is known to lie under it.)
+      const at = stack.indexOf(s);
+      const lower = at >= 0 && stack.slice(at + 1).some((n) => surfaces.includes(n));
+      // Once marked, the surface has the background from our own rule: do not mistake it for
+      // the site's.
+      const ownBg = !s.hasAttribute(BOARD) && opaqueBg(s);
+      if (!lower && !ownBg) s.setAttribute(BOARD, '');
+      else s.removeAttribute(BOARD);
+    }
+  }
+
+  function isLarge(el) {
+    const r = el.getBoundingClientRect();
+    return r.width * r.height >= innerWidth * innerHeight * 0.33;
+  }
+
+  function opaqueBg(el) {
+    const c = parseColor(getComputedStyle(el).backgroundColor);
+    return !!(c && c.a >= 0.9);
+  }
+
+  function processSwatch(el) {
+    const s = swatchInfo(el);
+    if (!s) {
+      if (el.hasAttribute(COLOR) && !findSurfaces().includes(el)) el.removeAttribute(COLOR);
+      return;
+    }
+    if (el.hasAttribute(COLOR)) return;
+    if (checkPalette(el)) return;
+    // On an editor page a single round colour button (the current colour) keeps its colour too.
+    if (paletteSeen && s.round && !el.childElementCount && findSurfaces().length && interactive(el)) {
+      el.setAttribute(COLOR, '');
+    }
+  }
+
   const SKIP = new Set(['script', 'style', 'link', 'meta', 'head', 'title', 'noscript', 'template', 'br', 'source', 'track', 'option']);
 
   function processElement(el) {
@@ -382,7 +554,13 @@
     const tag = el.localName;
     if (SKIP.has(tag)) return;
     if (tag === 'img' || (tag === 'input' && el.type === 'image')) { processImg(el); return; }
-    if (settings.smartImages) processBg(el);
+    if (!settings.smartImages) return;
+    if (tag === 'canvas' || tag === 'svg') {
+      if (paletteSeen && isLarge(el)) { editorCheck.at = -Infinity; markSurfaces(); return; }
+      if (tag === 'canvas') return;
+    }
+    if (!(el instanceof SVGElement) || tag === 'svg') processSwatch(el);
+    processBg(el);
   }
 
   /* -------------------------------------------------------- work queue */
@@ -401,6 +579,7 @@
   function runQueue(deadline) {
     scheduled = false;
     if (!mode) { queue.clear(); return; }
+    swatchMemo = new Map(); // sizes and colours may have changed since the last run
     const start = performance.now();
     for (const el of queue) {
       queue.delete(el);
@@ -431,6 +610,13 @@
         for (const n of m.addedNodes) if (n.nodeType === 1 && n !== styleEl) scanTree(n);
       } else if (m.target.nodeType === 1) {
         enqueue(m.target);
+        // A popup (a colour palette, for example) is often shown by changing a class or style on
+        // its container: its contents only get a size then, so look at them again.
+        const t = m.target;
+        if (t.firstElementChild && t !== document.body && t !== document.documentElement &&
+            t.getElementsByTagName('*').length <= 300) {
+          t.querySelectorAll('*').forEach(enqueue);
+        }
       }
     }
   }
@@ -620,6 +806,16 @@
     delete settings.nativeDark;
     listen();
     update();
+
+    // Sizes decide what is a colour swatch or a drawing surface: look again when they change
+    // (and when a page that was loaded in a hidden window or tab is shown).
+    let resizeTimer = 0;
+    const rescan = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => { if (mode && !dead) { editorCheck.at = -Infinity; fullScan(); } }, 500);
+    };
+    window.addEventListener('resize', rescan);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) rescan(); });
 
     if (isTop) {
       whenBody(detectNativeDark);
