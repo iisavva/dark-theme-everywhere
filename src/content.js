@@ -252,12 +252,16 @@
     try { return new URL(src, location.href).origin === location.origin && location.origin !== 'null'; } catch (e) { return false; }
   }
 
-  async function loadStats(src) {
+  async function loadStats(src, pageLoaded) {
     if (/^(data|blob):/i.test(src) || sameOrigin(src)) {
       const im = await loadImage(src);
       return sample(im, im.naturalWidth || 64, im.naturalHeight || 64);
     }
-    // Cross-origin: the background worker downloads and analyses the picture.
+    // Cross-origin: the background worker downloads and analyses the picture. It is not bound by
+    // the page's network restrictions, so first make sure the page itself is allowed to load the
+    // picture (the browser blocks pages from the local network, for example). Otherwise a page could
+    // use the extension to probe addresses such as 192.168.1.1.nip.io that it cannot reach itself.
+    if (!pageLoaded) await loadImage(src);
     const r = await send({ type: 'analyzeImage', url: src });
     if (!r) return null;
     if (r.svg) {
@@ -282,7 +286,9 @@
         p = null; // tainted canvas – fall back to loading
       }
     }
-    if (!p) p = loadStats(src).catch(() => null);
+    // A complete <img> with pixels was loaded by the page itself.
+    const pageLoaded = !!(img && img.complete && img.naturalWidth);
+    if (!p) p = loadStats(src, pageLoaded).catch(() => null);
     if (statsCache.size > 800) statsCache.delete(statsCache.keys().next().value);
     statsCache.set(src, p);
     return p;

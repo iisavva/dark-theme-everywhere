@@ -24,7 +24,11 @@ function loadWorker(serve) {
     chrome: {
       runtime: { onMessage: { addListener: (f) => { onMessage = f; } }, onInstalled: { addListener() {} }, getManifest() {} },
       commands: { onCommand: { addListener() {} } },
-      action: {}, tabs: {}
+      action: {},
+      tabs: {
+        onRemoved: { addListener: (f) => { log.onRemoved = f; } },
+        sendMessage: async () => ({ ready: true, active: true, nativeDark: false, host: 'secret.example.com' })
+      }
     },
     createImageBitmap: async () => ({ width: 10, height: 10, close() {} }),
     OffscreenCanvas: class {
@@ -62,9 +66,13 @@ function loadWorker(serve) {
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(root, 'src/shared.js'), 'utf8'), ctx);
   vm.runInContext(fs.readFileSync(path.join(root, 'src/background.js'), 'utf8'), ctx);
-  const ask = (url, page = 'https://news.example.com/') => new Promise((resolve) =>
-    onMessage({ type: 'analyzeImage', url }, { tab: { id: 1, url: page }, url: page }, resolve));
-  return { ask, log };
+  const ask = (url, page = 'https://news.example.com/', tabId = 1, documentId = 'doc-' + tabId) =>
+    new Promise((resolve) =>
+      onMessage({ type: 'analyzeImage', url }, { tab: { id: tabId, url: page }, url: page, frameId: 0, documentId }, resolve));
+  const message = (msg, sender) => new Promise((resolve) => {
+    if (onMessage(msg, sender, resolve) !== true) resolve(undefined);
+  });
+  return { ask, message, log };
 }
 
 const tests = [];
@@ -157,6 +165,53 @@ test('downloads at most 4 pictures at a time', async () => {
   await Promise.all(Array.from({ length: 30 }, (_, i) => ask(`https://cdn.example.net/${i}.svg`)));
   assert.strictEqual(log.fetched.length, 30);
   assert.ok(log.maxActive <= 4, `max parallel ${log.maxActive}`);
+});
+
+test('a page may have pictures from at most 40 hosts analysed', async () => {
+  const { ask } = loadWorker(() => svg);
+  for (let i = 0; i < 40; i++) assert.ok(await ask(`https://h${i}.example.net/a.svg`), `host ${i}`);
+  assert.strictEqual(await ask('https://h40.example.net/a.svg'), null, '41st host refused');
+  assert.ok(await ask('https://h3.example.net/b.svg'), 'known host still allowed');
+  assert.ok(await ask('https://h40.example.net/a.svg', PUBLIC, 1, 'other-doc'), 'another page has its own limit');
+});
+
+test('public names of local addresses cannot be probed in bulk', async () => {
+  const { ask, log } = loadWorker(() => svg);
+  const results = [];
+  for (let i = 1; i <= 100; i++) results.push(await ask(`http://192.168.1.${i}.nip.io/logo.svg`));
+  assert.ok(log.fetched.length <= 40, `fetched ${log.fetched.length}`);
+});
+
+test('one tab with many slow pictures does not hold up another tab', async () => {
+  const done = [];
+  const { ask } = loadWorker(async (url) => {
+    await new Promise((ok) => setTimeout(ok, url.includes('slow') ? 30 : 1));
+    return svg;
+  });
+  const slow = Array.from({ length: 40 }, (_, i) => ask(`https://slow.example.net/${i}.svg`, PUBLIC, 1)
+    .then(() => done.push('slow')));
+  await new Promise((ok) => setTimeout(ok, 5));
+  const fast = ask('https://fast.example.net/a.svg', PUBLIC, 2).then(() => done.push('fast'));
+  await Promise.all([...slow, fast]);
+  const at = done.indexOf('fast');
+  assert.ok(at < 10, `other tab finished as #${at + 1} of ${done.length}`);
+});
+
+test('a tab queue is limited, the rest is not analysed', async () => {
+  const { ask, log } = loadWorker(async () => {
+    await new Promise((ok) => setTimeout(ok, 2));
+    return svg;
+  });
+  const results = await Promise.all(Array.from({ length: 200 }, (_, i) =>
+    ask(`https://cdn.example.net/${i}.svg`)));
+  assert.ok(results.filter((r) => r === null).length >= 40, 'excess refused');
+  assert.ok(log.fetched.length <= 160, `fetched ${log.fetched.length}`);
+});
+
+test('an iframe learns only whether the page around it is themed', async () => {
+  const { message } = loadWorker(() => svg);
+  const r = await message({ type: 'getTopState' }, { tab: { id: 1 }, frameId: 3, url: 'https://ads.example.org/' });
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(r)), { active: true });
 });
 
 /* ---------------------------------------------------- cache */

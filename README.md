@@ -171,6 +171,25 @@ how "paper-like" it is (a white background with dark strokes). For transparent i
 the contrast of two variants, original and inverted, against the background that will be behind the
 image after darkening, and picks the better one.
 
+## Security
+
+Images from other domains are downloaded by the background worker, which is not bound by CORS or
+by the browser's restrictions on pages. So that a page cannot abuse it:
+
+- the worker downloads without cookies, and only pixel statistics leave it;
+- addresses in the local network (localhost, private IPs, `.local`, single-label names) are not
+  downloaded for public pages, and neither are redirects into the local network;
+- a background picture is analysed only after the page itself has loaded it, so the browser's own
+  rules for the page (for example, the block on reaching local network devices) apply. This covers
+  public names that point to private addresses (`192.168.1.1.nip.io`), which a name check cannot see;
+- one page may have pictures from at most 40 hosts analysed, which stops it from probing many
+  addresses; tabs have separate, size-limited download queues that take turns;
+- an iframe only learns whether the page around it is themed.
+
+Residual risk: with DNS rebinding (a name that resolves to a public address for the page and to a
+private one a moment later for the extension) a page can still make up to 40 cookie-less GET
+requests to the local network per page load and learn the rough brightness of a picture there.
+
 ## Testing without installing
 
 ```bash

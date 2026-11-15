@@ -109,8 +109,10 @@ function senderIsLocal(sender) {
 }
 
 const MAX_SVG_BYTES = 1024 * 1024;
-const FETCH_TIMEOUT_MS = 15000;
+const FETCH_TIMEOUT_MS = 8000;
 const MAX_PARALLEL = 4;
+const MAX_WAITING_PER_TAB = 150;
+const MAX_HOSTS_PER_PAGE = 40;
 
 /**
  * Reads at most `max` bytes of the body. Returns null (and cancels the download) if the body is
@@ -186,32 +188,87 @@ async function analyzeRemote(url, allowPrivate) {
   }
 }
 
-/* A page can reference thousands of pictures: download only a few at a time. */
+/*
+ * A page can reference thousands of pictures: download only a few at a time. Every tab has its
+ * own queue and the tabs take turns, so one page with many slow pictures cannot hold up the
+ * others; a tab's queue has a size limit, the rest is not analysed.
+ */
 let running = 0;
-const waiting = [];
+const queues = new Map(); // tabId -> [run]
 
-function limited(task) {
+function nextTask() {
+  for (const [tabId, q] of queues) {
+    const run = q.shift();
+    queues.delete(tabId);
+    if (q.length) queues.set(tabId, q); // move the tab to the end: round robin
+    if (run) return run;
+  }
+  return null;
+}
+
+function limited(tabId, task) {
   return new Promise((resolve, reject) => {
     const run = () => {
       running++;
       task().then(resolve, reject).finally(() => {
         running--;
-        const next = waiting.shift();
+        const next = nextTask();
         if (next) next();
       });
     };
-    if (running < MAX_PARALLEL) run();
-    else waiting.push(run);
+    if (running < MAX_PARALLEL) { run(); return; }
+    const q = queues.get(tabId) || [];
+    if (q.length >= MAX_WAITING_PER_TAB) { resolve(null); return; }
+    q.push(run);
+    queues.set(tabId, q);
   });
 }
 
-function analyzeCached(url, allowPrivate) {
+/*
+ * Distinct picture hosts a single page may have analysed. Real pages use a few dozen at most;
+ * the limit stops a page from probing many addresses through the extension (for example local
+ * network devices behind public names that resolve to private addresses).
+ */
+const pageHosts = new Map(); // page key -> Set of hosts
+
+function pageKey(sender) {
+  const tabId = sender.tab ? sender.tab.id : -1;
+  return `${tabId}|${sender.documentId || `${sender.frameId}|${sender.url || ''}`}`;
+}
+
+function hostAllowed(sender, url) {
+  let host;
+  try { host = new URL(url).host; } catch (e) { return false; }
+  const key = pageKey(sender);
+  let hosts = pageHosts.get(key);
+  if (!hosts) {
+    if (pageHosts.size > 500) pageHosts.delete(pageHosts.keys().next().value);
+    hosts = new Set();
+    pageHosts.set(key, hosts);
+  }
+  if (hosts.has(host)) return true;
+  if (hosts.size >= MAX_HOSTS_PER_PAGE) return false;
+  hosts.add(host);
+  return true;
+}
+
+if (chrome.tabs && chrome.tabs.onRemoved) {
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    queues.delete(tabId);
+    for (const key of pageHosts.keys()) if (key.startsWith(tabId + '|')) pageHosts.delete(key);
+  });
+}
+
+function analyzeCached(url, allowPrivate, sender) {
   if (!/^https?:/i.test(url)) return Promise.resolve(null);
   if (!allowPrivate && isPrivateUrl(url)) return Promise.resolve(null);
+  if (!hostAllowed(sender, url)) return Promise.resolve(null);
   // Separate cache entries, so a result fetched for an intranet page never reaches a public one.
   const key = (allowPrivate ? 'local|' : 'public|') + url;
   if (statsCache.has(key)) return statsCache.get(key);
-  const p = limited(() => analyzeRemote(url, allowPrivate)).catch(() => null);
+  const p = limited(sender.tab ? sender.tab.id : -1, () => analyzeRemote(url, allowPrivate)).catch(() => null);
+  // A result dropped by the queue limit must not stay in the cache.
+  p.then((r) => { if (r === null && statsCache.get(key) === p) statsCache.delete(key); });
   if (statsCache.size > 1000) statsCache.delete(statsCache.keys().next().value);
   statsCache.set(key, p);
   // SVG text can be up to 1 MB: keep it out of the cache (the content script caches the
@@ -240,12 +297,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   switch (msg.type) {
     case 'analyzeImage':
-      analyzeCached(String(msg.url || ''), senderIsLocal(sender)).then(sendResponse, () => sendResponse(null));
+      analyzeCached(String(msg.url || ''), senderIsLocal(sender), sender).then(sendResponse, () => sendResponse(null));
       return true;
 
     case 'getTopState':
+      // An iframe only needs to know whether the page around it is themed: not its address
+      // or other details (the frame may belong to another site, an ad network for example).
       chrome.tabs.sendMessage(tabId, { type: 'getStatus' }, { frameId: 0 })
-        .then((r) => sendResponse(r || null), () => sendResponse(null));
+        .then((r) => sendResponse(r ? { active: !!r.active } : null), () => sendResponse(null));
       return true;
 
     case 'topState':
