@@ -19,6 +19,8 @@ The extension's interface is in Russian; Russian labels are given in parentheses
   - the decision is based on the contrast between the image and the actual background behind it;
     it works for `<img>`, SVG files and icons set via CSS `background-image`;
   - light pictures with black text (diagrams, document screenshots) can optionally be inverted.
+  - colourful inline SVG illustrations and animations (Lottie and the like) keep their colours like
+    pictures; single-colour SVG icons and SVG charts with labels are themed with the page.
 - **Colour palettes keep their real colours.** A group of small clickable colour swatches (brush
   colours on an online whiteboard, colour choice in a shop) is shown in original colours, so a black
   swatch stays black. On whiteboards and editors (a palette plus a large canvas or SVG: Holst, Miro,

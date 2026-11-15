@@ -711,8 +711,89 @@
       }
       if (tag === 'canvas') return;
     }
-    if (!(el instanceof SVGElement) || tag === 'svg') processSwatch(el);
+    if (el instanceof SVGElement) {
+      if (tag === 'svg' && !el.ownerSVGElement) {
+        processSwatch(el);
+        processSvgArt(el);
+      } else {
+        // Shapes added to an SVG (an animation builds its frames this way): look at it again.
+        const root = outerSvg(el);
+        if (root) svgSoon(root);
+      }
+      return;
+    }
+    processSwatch(el);
     processBg(el);
+  }
+
+  /* ------------------------------------------------------ inline SVG illustrations */
+  /*
+   * An inline <svg> is themed with the page like text: right for icons, which are drawn in one
+   * colour (often the text colour). A colourful SVG illustration or animation (Lottie and the
+   * like: achievements, mascots) would have its colours turned dark instead. Such an SVG is shown
+   * in original colours, like a picture: at least 40 px, at least 8 painted shapes, at least
+   * 5 different colours of which a quarter saturated (or 8 colours), or a raster <image> inside.
+   * SVGs with text (charts, diagrams) keep the theme, so their labels stay readable.
+   */
+  const svgPending = new Set();
+  let svgTimer = 0;
+
+  function outerSvg(el) {
+    let s = el.ownerSVGElement;
+    while (s && s.ownerSVGElement) s = s.ownerSVGElement;
+    return s || null;
+  }
+
+  function svgSoon(root) {
+    svgPending.add(root);
+    if (!svgTimer) {
+      svgTimer = setTimeout(() => {
+        svgTimer = 0;
+        if (!dead && mode && mode !== 'player') svgPending.forEach(enqueue);
+        svgPending.clear();
+      }, 1000);
+    }
+  }
+
+  function paintColor(value) {
+    if (!value || !/^rgba?\(/.test(value)) return null; // none, url(#gradient), context-fill…
+    const c = parseColor(value);
+    return c && c.a >= 0.3 ? c : null;
+  }
+
+  function isSvgArt(svg) {
+    const r = svg.getBoundingClientRect();
+    if (r.width < 40 || r.height < 40 || insideKeep(svg)) return false;
+    if (svg.querySelectorAll('text, foreignObject').length > 2) return false;
+    if (svg.querySelector('image')) return true;
+    const shapes = svg.querySelectorAll('path, circle, rect, ellipse, polygon, polyline');
+    if (shapes.length < 8) return false;
+    const colors = new Set();
+    const behind = backdropLum(parentOf(svg));
+    let counted = 0, colorful = 0, blending = 0;
+    for (let i = 0; i < shapes.length && counted < 200; i++) {
+      const cs = getComputedStyle(shapes[i]);
+      if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+      if (/^url\(/.test(cs.fill)) { counted++; colorful++; colors.add('gradient' + i % 4); continue; }
+      const c = paintColor(cs.fill) || paintColor(cs.stroke);
+      if (!c) continue;
+      counted++;
+      colors.add(`${c.r >> 5},${c.g >> 5},${c.b >> 5}`);
+      const sat = (Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b)) / 255;
+      if (sat > 0.3) colorful++;
+      if (behind !== null && sat < 0.12 && Math.abs(luminance(c) - behind) < 0.12) blending++;
+    }
+    // Shapes that blend into the original background (white on white) must stay as hidden as they
+    // were: shown in original colours on the dark page they would appear (content that moderators
+    // of a site with user posts never saw). Then the SVG keeps the theme, like the rest of the page.
+    if (counted && blending / counted > 0.3) return false;
+    return counted >= 8 && colors.size >= 5 && (colorful / counted >= 0.25 || colors.size >= 8);
+  }
+
+  function processSvgArt(svg) {
+    const art = isSvgArt(svg);
+    if (art && !svg.hasAttribute(KEEP)) svg.setAttribute(KEEP, '');
+    else if (!art && svg.hasAttribute(KEEP)) svg.removeAttribute(KEEP);
   }
 
   /* -------------------------------------------------------- work queue */
