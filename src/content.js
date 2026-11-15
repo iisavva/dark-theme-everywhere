@@ -29,6 +29,13 @@
   const PLAYER = 'data-dt-p'; // video player shown as on the site (video, controls, captions)
   const STYLE_ID = 'dark-theme-everywhere-style';
   const INV = 'invert(1) hue-rotate(180deg)';
+  /*
+   * Canvases that draw page content rather than pictures, so they are themed with the page like
+   * text instead of being shown in original colours: the cell grid of Google Sheets (one large
+   * canvas, which would otherwise be taken for a drawing board and stay white). Charts and
+   * pictures inserted into a sheet keep their colours.
+   */
+  const THEMED_CANVAS = '#waffle-grid-container canvas:not(.waffle-embedded-object-overlay *)';
   const isTop = window === window.top;
   const host = isTop ? D.hostFromUrl(location.href) : null;
 
@@ -96,6 +103,7 @@
       r.push(`:fullscreen:not(video):not(img):not(canvas) { filter: ${F} !important; }`);
     }
     r.push(`${media.map((m) => m + `:not([${FLIP}])`).join(', ')}, [${KEEP}] { filter: ${K} !important; }`);
+    r.push(`${THEMED_CANVAS} { filter: none !important; }`);
     // Colour swatches and drawing surfaces: original colours, without the photo dimming.
     // (The attribute is doubled to outrank `canvas:not([data-dt-f])` above.)
     r.push(`[${COLOR}][${COLOR}], input[type="color"] { filter: ${INV} !important; }`);
@@ -521,6 +529,10 @@
     return false;
   }
 
+  function isThemedCanvas(el) {
+    try { return el.localName === 'canvas' && el.matches(THEMED_CANVAS); } catch (e) { return false; }
+  }
+
   /** Large canvases and SVGs: the drawing surface of an editor. */
   function findSurfaces() {
     const now = performance.now();
@@ -528,6 +540,7 @@
     const min = innerWidth * innerHeight * 0.33;
     const surfaces = [];
     for (const el of document.querySelectorAll('canvas, svg')) {
+      if (isThemedCanvas(el)) continue; // page content (a spreadsheet grid), not a drawing board
       if (el.localName === 'svg' && el.ownerSVGElement) continue; // nested svg
       const r = el.getBoundingClientRect();
       if (r.width * r.height >= min) surfaces.push(el);
