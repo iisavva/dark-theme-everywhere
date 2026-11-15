@@ -84,7 +84,8 @@
     }
     r.push(`${media.map((m) => m + `:not([${FLIP}])`).join(', ')}, [${KEEP}] { filter: ${K} !important; }`);
     // Colour swatches and drawing surfaces: original colours, without the photo dimming.
-    r.push(`[${COLOR}], input[type="color"] { filter: ${INV} !important; }`);
+    // (The attribute is doubled to outrank `canvas:not([data-dt-f])` above.)
+    r.push(`[${COLOR}][${COLOR}], input[type="color"] { filter: ${INV} !important; }`);
     r.push(`[${BOARD}] { background-color: ${rootBg} !important; }`);
     r.push(`[${FLIP}] { filter: none !important; }`);
     const restored = [`[${KEEP}]`, `[${COLOR}]`];
