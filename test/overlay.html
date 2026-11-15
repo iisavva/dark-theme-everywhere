@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Тест: декоративный canvas поверх страницы</title>
+  <script>
+    if (/[?&]stub\b/.test(location.search)) {
+      document.write('<script src="chrome-stub.js"><\/script><script src="../src/shared.js"><\/script><script src="../src/content.js"><\/script>');
+    }
+  </script>
+  <style>
+    body { font: 16px Arial, sans-serif; margin: 24px; color: #222; }
+    /* full-page effect canvases over the content: must stay transparent */
+    #fx1 { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    #fx2 { position: fixed; inset: 0; width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <h1>Обычная страница с текстом</h1>
+  <p>Поверх неё лежат два прозрачных canvas на весь экран (эффекты). Текст должен оставаться видимым.</p>
+  <canvas id="fx1"></canvas>
+  <canvas id="fx2"></canvas>
+</body>
+</html>

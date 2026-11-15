@@ -144,6 +144,7 @@
     gen++;
     seen = new WeakMap();
     paletteSeen = false;
+    boardFound = false;
     const attrs = [KEEP, FLIP, COLOR, BOARD];
     const sel = attrs.map((a) => `[${a}]`).join(', ');
     const clear = (el) => attrs.forEach((a) => el.removeAttribute(a));
@@ -399,6 +400,7 @@
    */
 
   let paletteSeen = false;
+  let boardFound = false;   // a large canvas is the bottom layer of the page (a whiteboard)
   let swatchMemo = new Map(); // per queue run: element -> swatch info | null
   let editorCheck = { at: -Infinity, surfaces: [] };
 
@@ -448,7 +450,9 @@
     }
     if ((el.textContent || '').trim()) return null;
     const r = el.getBoundingClientRect();
-    if (r.width < 8 || r.height < 8 || r.width > 64 || r.height > 64) return null;
+    // From 2 px: a brush slot shows its colour as a dot as small as the brush (Holst).
+    // Palettes (groups) use swatches of 8 px and more, see checkPalette.
+    if (r.width < 2 || r.height < 2 || r.width > 64 || r.height > 64) return null;
     if (Math.max(r.width, r.height) / Math.min(r.width, r.height) > 2) return null;
     if (!round) round = radius >= Math.min(r.width, r.height) * 0.35;
     return { key, w: r.width, h: r.height, round };
@@ -461,7 +465,8 @@
       if (all.length > 400) return false;
       const items = [];
       for (const n of all) {
-        const s = swatchInfo(n);
+        let s = swatchInfo(n);
+        if (s && (s.w < 8 || s.h < 8)) s = null;
         // A swatch inside another swatch (a ring around a dot) counts once.
         if (s && !(items.length && items[items.length - 1][0].contains(n))) items.push([n, s]);
       }
@@ -501,25 +506,63 @@
     return surfaces;
   }
 
+  /*
+   * A canvas is always shown in original colours, so a large transparent canvas also needs the
+   * page's original background behind it: otherwise black strokes on a whiteboard land on the
+   * darkened page and disappear. This does not need a palette. A large SVG is treated as a
+   * drawing surface only on a page with a palette (otherwise it is an illustration).
+   */
   function markSurfaces() {
-    if (!paletteSeen || mode !== 'full') return;
-    const surfaces = findSurfaces();
+    if (mode !== 'full') return;
+    const surfaces = findSurfaces().filter((s) => s.localName === 'canvas' || paletteSeen);
     for (const s of surfaces) {
       s.setAttribute(COLOR, '');
-      // Only the lowest surface of a stack gets the page background behind it: upper layers of
-      // a layered board are transparent on purpose.
       const r = s.getBoundingClientRect();
       const stack = document.elementsFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-      // (Hit testing may not see the surface yet, e.g. while the page is still laying out;
-      // then nothing is known to lie under it.)
       const at = stack.indexOf(s);
-      const lower = at >= 0 && stack.slice(at + 1).some((n) => surfaces.includes(n));
+      // The background goes only behind a surface that is the bottom layer: everything under it
+      // is its own containers. A canvas laid over the page content (a decorative effect) or an
+      // upper layer of a layered board must stay transparent. If hit testing does not see the
+      // surface (pointer-events: none, still laying out), nothing is changed.
+      const bottom = at >= 0 && stack.slice(at + 1).every((n) => n.contains(s)) && !textUnder(s, r);
       // Once marked, the surface has the background from our own rule: do not mistake it for
       // the site's.
       const ownBg = !s.hasAttribute(BOARD) && opaqueBg(s);
-      if (!lower && !ownBg) s.setAttribute(BOARD, '');
-      else s.removeAttribute(BOARD);
+      if (bottom && !boardFound) {
+        boardFound = true;
+        // Colour dots checked before the board was found get another look.
+        setTimeout(fullScan, 0);
+      }
+      if (bottom && !ownBg) s.setAttribute(BOARD, '');
+      else if (at >= 0) s.removeAttribute(BOARD);
     }
+  }
+
+  /** Whether visible page text lies under the surface (then it is an overlay, not a board). */
+  function textUnder(s, r) {
+    const walker = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_TEXT);
+    let checked = 0;
+    for (let n = walker.nextNode(); n && checked < 40; n = walker.nextNode()) {
+      if (!n.nodeValue.trim()) continue;
+      const el = n.parentElement;
+      if (!el || el.closest('script, style, noscript, template')) continue;
+      const b = el.getBoundingClientRect();
+      if (!b.width || !b.height) continue;
+      const x = b.left + Math.min(b.width, 40) / 2;
+      const y = b.top + b.height / 2;
+      if (x < r.left || x > r.right || y < r.top || y > r.bottom || x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue;
+      checked++;
+      const stack = document.elementsFromPoint(x, y);
+      const si = stack.indexOf(s);
+      const ti = stack.findIndex((e) => e === el || el.contains(e) || e.contains(el));
+      if (si >= 0 && ti > si) return true;
+    }
+    return false;
+  }
+
+  /** A page with a drawing surface: a board canvas at the bottom, or a large SVG next to a palette. */
+  function editorPage() {
+    return boardFound || (paletteSeen && findSurfaces().length > 0);
   }
 
   function isLarge(el) {
@@ -540,8 +583,9 @@
     }
     if (el.hasAttribute(COLOR)) return;
     if (checkPalette(el)) return;
-    // On an editor page a single round colour button (the current colour) keeps its colour too.
-    if (paletteSeen && s.round && !el.childElementCount && findSurfaces().length && interactive(el)) {
+    // On a page with a drawing surface a single round colour button (the current colour, a brush
+    // slot) keeps its colour too.
+    if (s.round && !el.childElementCount && editorPage() && interactive(el)) {
       el.setAttribute(COLOR, '');
     }
   }
@@ -556,7 +600,11 @@
     if (tag === 'img' || (tag === 'input' && el.type === 'image')) { processImg(el); return; }
     if (!settings.smartImages) return;
     if (tag === 'canvas' || tag === 'svg') {
-      if (paletteSeen && isLarge(el)) { editorCheck.at = -Infinity; markSurfaces(); return; }
+      if ((tag === 'canvas' || paletteSeen) && isLarge(el)) {
+        editorCheck.at = -Infinity;
+        markSurfaces();
+        return;
+      }
       if (tag === 'canvas') return;
     }
     if (!(el instanceof SVGElement) || tag === 'svg') processSwatch(el);
