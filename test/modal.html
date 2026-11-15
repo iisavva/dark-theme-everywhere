@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Тест: модальное окно</title>
+  <script>
+    if (/[?&]stub\b/.test(location.search)) {
+      var v = '?v=' + Date.now(); // no stale scripts from the cache
+      document.write('<script src="chrome-stub.js' + v + '"><\/script><script src="../src/shared.js' + v + '"><\/script><script src="../src/content.js' + v + '"><\/script>');
+    }
+  </script>
+  <style>
+    body { font: 15px Arial, sans-serif; color: #222; background: #f3f4f6; margin: 0; padding: 24px; min-height: 100vh; }
+    .card { background: #fff; padding: 16px; border-radius: 8px; margin-bottom: 16px; }
+    .btn { background: #4ea1d3; color: #fff; border: 0; padding: 10px 16px; border-radius: 6px; cursor: pointer; }
+    /* Bootstrap-like modal: a black backdrop made translucent with opacity */
+    body.modal-open { overflow: hidden; padding-right: 15px; }
+    .modal-backdrop { position: fixed; inset: 0; background-color: #000; opacity: .5; z-index: 1040; }
+    .modal { position: fixed; inset: 0; z-index: 1050; display: flex; justify-content: center; align-items: flex-start; padding-top: 30px; }
+    .modal-dialog { background: #fff; padding: 20px; border-radius: 8px; width: 600px; }
+    /* another common overlay: a fixed layer with a dark rgba background */
+    .overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, .8); z-index: 1040; }
+  </style>
+</head>
+<body>
+  <div class="card"><h1>Светлый сайт</h1><p>Кнопки открывают модальные окна. Тёмная тема не должна выключаться.</p>
+    <button class="btn" id="open">Завершить (окно как в Bootstrap)</button>
+    <button class="btn" id="open2">Окно с тёмной подложкой rgba(0,0,0,.8)</button>
+    <button class="btn" id="darkTheme">Сайт сам включил тёмную тему</button></div>
+  <div class="card"><p>Обычный текст страницы.</p></div>
+  <script>
+    function openModal(overlayClass, extraStyle) {
+      document.body.classList.add('modal-open');
+      const back = document.createElement('div');
+      back.className = overlayClass;
+      document.body.append(back);
+      const m = document.createElement('div');
+      m.className = 'modal';
+      m.innerHTML = '<div class="modal-dialog"><h2>Завершить?</h2><p>Вы не ответили на вопросы: 1</p>' +
+        '<button class="btn" id="close">Вернуться к вопросам</button></div>';
+      document.body.append(m);
+      m.querySelector('#close').onclick = () => { m.remove(); back.remove(); document.body.classList.remove('modal-open'); };
+    }
+    document.getElementById('open').onclick = () => openModal('modal-backdrop');
+    document.getElementById('open2').onclick = () => openModal('overlay');
+    // The site's own dark theme: the extension must still notice it and step aside.
+    document.getElementById('darkTheme').onclick = () => {
+      document.body.style.background = '#121417';
+      document.body.style.color = '#ddd';
+      document.querySelectorAll('.card').forEach((c) => { c.style.background = '#1d2026'; });
+    };
+  </script>
+</body>
+</html>

@@ -5,7 +5,8 @@
   <title>Уже тёмный сайт</title>
   <script>
     if (/[?&]stub\b/.test(location.search)) {
-      document.write('<script src="chrome-stub.js"><\/script><script src="../src/shared.js"><\/script><script src="../src/content.js"><\/script>');
+      var v = '?v=' + Date.now(); // no stale scripts from the cache
+      document.write('<script src="chrome-stub.js' + v + '"><\/script><script src="../src/shared.js' + v + '"><\/script><script src="../src/content.js' + v + '"><\/script>');
     }
   </script>
   <style>

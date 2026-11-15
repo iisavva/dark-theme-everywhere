@@ -620,7 +620,9 @@
   function processSwatch(el) {
     const s = swatchInfo(el);
     if (!s) {
-      if (el.hasAttribute(COLOR) && !findSurfaces().includes(el)) el.removeAttribute(COLOR);
+      if (el.hasAttribute(COLOR) && el.getAttribute(COLOR) !== 'backdrop' && !findSurfaces().includes(el)) {
+        el.removeAttribute(COLOR);
+      }
       return;
     }
     if (el.hasAttribute(COLOR)) return;
@@ -669,6 +671,28 @@
     }
   }
 
+  /*
+   * The dimming backdrop of a modal window (a translucent black layer over the whole page) would
+   * turn white when inverted and lighten the dark page instead of dimming it. Such a backdrop
+   * keeps its original colour.
+   */
+  function processBackdrop(el) {
+    const cs = getComputedStyle(el);
+    const was = el.hasAttribute(COLOR) && el.getAttribute(COLOR) === 'backdrop';
+    let is = false;
+    if (cs.position === 'fixed' && !el.childElementCount && !(el.textContent || '').trim()) {
+      const c = parseColor(cs.backgroundColor);
+      const alpha = c ? c.a * effectiveOpacity(el) : 0;
+      if (c && luminance(c) < 0.25 && alpha > 0.05 && alpha < 0.95) {
+        const r = el.getBoundingClientRect();
+        is = r.width >= innerWidth * 0.9 && r.height >= innerHeight * 0.9;
+      }
+    }
+    if (is && !was) el.setAttribute(COLOR, 'backdrop');
+    else if (!is && was) el.removeAttribute(COLOR);
+    return is;
+  }
+
   const SKIP = new Set(['script', 'style', 'link', 'meta', 'head', 'title', 'noscript', 'template', 'br', 'source', 'track', 'option']);
 
   function processElement(el) {
@@ -678,6 +702,7 @@
     if (SKIP.has(tag)) return;
     if (tag === 'img' || (tag === 'input' && el.type === 'image')) { processImg(el); return; }
     if (tag === 'video') { processVideo(el); return; }
+    if (processBackdrop(el)) return;
     if (!settings.smartImages) return;
     if (tag === 'canvas' || tag === 'svg') {
       if ((tag === 'canvas' || paletteSeen) && isLarge(el)) {
@@ -803,6 +828,47 @@
 
   /* ------------------------------------------------ dark site detection */
 
+  /*
+   * Helpers of the dark site check. A modal window, its backdrop or a cookie banner lies over the
+   * page: a black backdrop made translucent with `opacity` (Bootstrap) or a dark rgba layer must
+   * not make a light site look dark, or the theme switches off while the window is open.
+   */
+
+  /** Opacity of an element including its ancestors. */
+  function effectiveOpacity(el) {
+    let o = 1;
+    for (let n = el; n && n.nodeType === 1 && o > 0.01; n = parentOf(n)) {
+      const v = parseFloat(getComputedStyle(n).opacity);
+      if (Number.isFinite(v)) o *= v;
+    }
+    return o;
+  }
+
+  /**
+   * Whether an element belongs to something laid over the page: the top layer (<dialog>,
+   * popovers) or a fixed layer painted over the page's text anywhere on screen (a modal and its
+   * backdrop, a cookie banner). A fixed layer under the text is the page background itself (some
+   * dark sites use one) and counts. `memo` keeps the answer per fixed layer for one check.
+   */
+  function inOverlay(el, memo) {
+    try {
+      if (el.closest(':modal')) return true;
+    } catch (e) { /* selector not supported */ }
+    try {
+      if (el.closest(':popover-open')) return true;
+    } catch (e) { /* selector not supported */ }
+    let fixed = null;
+    for (let n = el; n && n !== document.body && n !== document.documentElement; n = parentOf(n)) {
+      if (getComputedStyle(n).position === 'fixed') fixed = n;
+    }
+    if (!fixed) return false;
+    if (!memo.has(fixed)) {
+      // Bounded work per check: past 8 fixed layers the rest are taken for overlays.
+      memo.set(fixed, memo.size >= 8 ? true : textUnder(fixed, fixed.getBoundingClientRect()));
+    }
+    return memo.get(fixed);
+  }
+
   function detectNativeDark() {
     if (!isTop || !settings || !document.documentElement) return;
     const sheet = styleEl && styleEl.isConnected ? styleEl.sheet : null;
@@ -828,14 +894,16 @@
         const w = innerWidth, h = innerHeight;
         const points = [[w / 2, h / 2], [w / 2, h * 0.2], [w * 0.2, h * 0.6], [w * 0.8, h * 0.6], [w / 2, h * 0.85]];
         let darkVotes = 0, votes = 0;
+        const overlayMemo = new Map();
         for (const [x, y] of points) {
           const stack = document.elementsFromPoint(x, y);
           let lum = rootLum;
           for (const el of stack) {
             if (el === html) break;
             if (el.localName === 'img' || el.localName === 'video' || el.localName === 'canvas') continue;
+            if (inOverlay(el, overlayMemo)) continue;
             const c = parseColor(getComputedStyle(el).backgroundColor);
-            if (c && c.a >= 0.6) { lum = luminance(c); break; }
+            if (c && c.a * effectiveOpacity(el) >= 0.6) { lum = luminance(c); break; }
           }
           votes++;
           if (lum < 0.4) darkVotes++;
