@@ -131,10 +131,12 @@
    *  transparent – share of (almost) transparent pixels
    *  lum         – mean luminance of visible pixels (0 black … 1 white)
    *  colorful    – share of saturated pixels
-   *  doc         – looks like a light picture with dark text (scheme, screenshot)
+   *  doc         – looks like a light picture with dark text (scheme, screenshot): mostly white
+   *                paper, and what is drawn on it is mostly grey or black. A colourful
+   *                illustration on a white background is not a document.
    */
   function imageStats(data, count) {
-    let transparent = 0, opaque = 0, sumL = 0, dark = 0, light = 0, colorful = 0, paper = 0, ink = 0;
+    let transparent = 0, opaque = 0, sumL = 0, dark = 0, light = 0, colorful = 0, paper = 0, ink = 0, tinted = 0;
     for (let i = 0; i < data.length; i += 4) {
       if (data[i + 3] < 50) { transparent++; continue; }
       const r = data[i], g = data[i + 1], b = data[i + 2];
@@ -144,11 +146,13 @@
       opaque++;
       sumL += L;
       if (L < 0.35) dark++;
-      if (L < 0.6) ink++;
+      if (L < 0.6 && sat < 0.2) ink++; // grey or black strokes and text
       if (L > 0.75) light++;
       if (sat > 0.3) colorful++;
       if (L > 0.88 && sat < 0.12) paper++;
+      else if (sat > 0.2) tinted++; // drawn in colour
     }
+    const drawn = opaque - paper;
     const total = count || data.length / 4;
     const op = opaque || 1;
     return {
@@ -158,7 +162,8 @@
       dark: dark / op,
       light: light / op,
       colorful: colorful / op,
-      doc: opaque > 0 && paper / op > 0.55 && ink / op > 0.008 && colorful / op < 0.2
+      doc: opaque > 0 && paper / op > 0.55 && ink / op > 0.008 && colorful / op < 0.2 &&
+        tinted / (drawn || 1) < 0.35
     };
   }
 
