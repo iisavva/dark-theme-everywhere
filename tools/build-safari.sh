@@ -46,6 +46,22 @@ xcrun safari-web-extension-converter "$ext" \
 
 project=$(find "$out" -maxdepth 3 -name '*.xcodeproj' | head -n 1)
 [[ -n "$project" ]] || { echo "Xcode project was not created" >&2; exit 1; }
+
+# The converter derives the app's bundle ID from the app name and the extension's from
+# --bundle-identifier, so they do not match, and Xcode refuses an extension whose ID does not
+# start with the app's. Set both explicitly: app = $bundle_id, extension = $bundle_id.Extension.
+ext_id="$bundle_id.Extension"
+pbx="$project/project.pbxproj"
+sed -E -i '' \
+  -e "/PRODUCT_BUNDLE_IDENTIFIER = .*[Ee]xtension\"?;/ s/PRODUCT_BUNDLE_IDENTIFIER = .*;/PRODUCT_BUNDLE_IDENTIFIER = \"$ext_id\";/" \
+  -e "/PRODUCT_BUNDLE_IDENTIFIER = .*[Ee]xtension\"?;/! s/PRODUCT_BUNDLE_IDENTIFIER = .*;/PRODUCT_BUNDLE_IDENTIFIER = \"$bundle_id\";/" \
+  "$pbx"
+# The app's Swift code asks Safari about the extension by its ID.
+find "$(dirname "$project")" -name '*.swift' -print0 | xargs -0 sed -E -i '' \
+  "s/(extensionBundleIdentifier[[:space:]]*=[[:space:]]*)\"[^\"]*\"/\1\"$ext_id\"/"
+echo "Bundle IDs:"
+grep -h 'PRODUCT_BUNDLE_IDENTIFIER' "$pbx" | sort -u
+grep -rh 'extensionBundleIdentifier =' "$(dirname "$project")" --include='*.swift' || true
 scheme=$(xcodebuild -list -json -project "$project" | node -e '
   let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
     const schemes = JSON.parse(s).project.schemes;
@@ -67,7 +83,12 @@ xcodebuild \
   MARKETING_VERSION="$version" \
   CURRENT_PROJECT_VERSION="$version" \
   "${sign_args[@]}" \
-  build | tail -n 20
+  build > "$out/xcodebuild.log" 2>&1 || {
+    grep -E 'error:|warning: .*(bundle|Bundle)|BUILD FAILED|Identifier' "$out/xcodebuild.log" >&2 || true
+    tail -n 40 "$out/xcodebuild.log" >&2
+    exit 1
+  }
+tail -n 3 "$out/xcodebuild.log"
 
 app="$derived/Build/Products/Release/$app_name.app"
 [[ -d "$app" ]] || { echo "App was not built" >&2; exit 1; }
