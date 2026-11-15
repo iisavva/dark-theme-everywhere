@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Test: hidden content in SVG illustrations</title>
+  <script>
+    if (/[?&]stub\b/.test(location.search)) {
+      var v = '?v=' + Date.now(); // no stale scripts from the cache
+      document.write('<script src="chrome-stub.js' + v + '"><\/script><script src="../src/shared.js' + v + '"><\/script><script src="../src/content.js' + v + '"><\/script>');
+    }
+  </script>
+  <style>
+    body { font: 15px Arial, sans-serif; color: #222; margin: 24px; background: #fff; }
+    .grid { display: grid; grid-template-columns: repeat(3, 200px); gap: 24px; }
+    figure { margin: 0; } figcaption { font-size: 13px; color: #666; }
+    .grey { background: #eee; padding: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Hidden content in SVG illustrations</h1>
+  <p>Each illustration below has parts that are invisible on this page (white on white, grey on grey).
+    With the dark theme they must stay invisible; the coloured dots keep their colours.</p>
+  <div class="grid">
+    <figure><svg id="one-shape" width="180" height="140" viewBox="0 0 180 140"><circle cx="16" cy="16" r="11" fill="#e53935"/><circle cx="44" cy="16" r="11" fill="#1e88e5"/><circle cx="72" cy="16" r="11" fill="#43a047"/><circle cx="100" cy="16" r="11" fill="#fdd835"/><circle cx="128" cy="16" r="11" fill="#8e24aa"/><circle cx="156" cy="16" r="11" fill="#fb8c00"/><circle cx="16" cy="44" r="11" fill="#e53935"/><circle cx="44" cy="44" r="11" fill="#1e88e5"/><circle cx="72" cy="44" r="11" fill="#43a047"/><circle cx="100" cy="44" r="11" fill="#fdd835"/><circle cx="128" cy="44" r="11" fill="#8e24aa"/><circle cx="156" cy="44" r="11" fill="#fb8c00"/><path class="hidden" fill="#ffffff" d="M10 80h160v18H10zM10 108h110v18H10z"/></svg><figcaption>Colourful dots + one large white shape → the shape stays invisible</figcaption></figure>
+    <figure class="grey"><svg id="on-grey" width="180" height="140" viewBox="0 0 180 140"><circle cx="16" cy="16" r="11" fill="#e53935"/><circle cx="44" cy="16" r="11" fill="#1e88e5"/><circle cx="72" cy="16" r="11" fill="#43a047"/><circle cx="100" cy="16" r="11" fill="#fdd835"/><circle cx="128" cy="16" r="11" fill="#8e24aa"/><circle cx="156" cy="16" r="11" fill="#fb8c00"/><circle cx="16" cy="44" r="11" fill="#e53935"/><circle cx="44" cy="44" r="11" fill="#1e88e5"/><circle cx="72" cy="44" r="11" fill="#43a047"/><circle cx="100" cy="44" r="11" fill="#fdd835"/><circle cx="128" cy="44" r="11" fill="#8e24aa"/><circle cx="156" cy="44" r="11" fill="#fb8c00"/><path class="hidden" fill="#eeeeee" d="M10 80h160v18H10zM10 108h110v18H10z"/></svg><figcaption>On a grey block, grey shape → stays invisible</figcaption></figure>
+    <figure><svg id="raster" width="180" height="140" viewBox="0 0 180 140"><image href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAYAAACtrX6oAAAAZUlEQVR42u3YSREAMAgAMfybBhWdciQW9rcRAAAAAAAzJG0JLLDAAiMwAiMwAiOwwAILLLDACIzACMzjwAAAAABr+EVWJQIjMAIjsMACCyywwAiMwAiMwAILLLDAZwMDAAAAwHcFIwkaiaxlEjEAAAAASUVORK5CYII=" x="30" y="40" width="120" height="60"/></svg><figcaption>Raster &lt;image&gt; with white text on transparent parts → stays invisible</figcaption></figure>
+    <figure><svg id="plain" width="180" height="140" viewBox="0 0 180 140"><circle cx="16" cy="16" r="11" fill="#e53935"/><circle cx="44" cy="16" r="11" fill="#1e88e5"/><circle cx="72" cy="16" r="11" fill="#43a047"/><circle cx="100" cy="16" r="11" fill="#fdd835"/><circle cx="128" cy="16" r="11" fill="#8e24aa"/><circle cx="156" cy="16" r="11" fill="#fb8c00"/><circle cx="16" cy="44" r="11" fill="#e53935"/><circle cx="44" cy="44" r="11" fill="#1e88e5"/><circle cx="72" cy="44" r="11" fill="#43a047"/><circle cx="100" cy="44" r="11" fill="#fdd835"/><circle cx="128" cy="44" r="11" fill="#8e24aa"/><circle cx="156" cy="44" r="11" fill="#fb8c00"/></svg><figcaption>Colourful dots only → colours kept, no background added</figcaption></figure>
+    <figure><svg id="own-bg" width="180" height="140" viewBox="0 0 180 140" style="background:#fff"><circle cx="16" cy="16" r="11" fill="#e53935"/><circle cx="44" cy="16" r="11" fill="#1e88e5"/><circle cx="72" cy="16" r="11" fill="#43a047"/><circle cx="100" cy="16" r="11" fill="#fdd835"/><circle cx="128" cy="16" r="11" fill="#8e24aa"/><circle cx="156" cy="16" r="11" fill="#fb8c00"/><circle cx="16" cy="44" r="11" fill="#e53935"/><circle cx="44" cy="44" r="11" fill="#1e88e5"/><circle cx="72" cy="44" r="11" fill="#43a047"/><circle cx="100" cy="44" r="11" fill="#fdd835"/><circle cx="128" cy="44" r="11" fill="#8e24aa"/><circle cx="156" cy="44" r="11" fill="#fb8c00"/><path class="hidden" fill="#ffffff" d="M10 80h160v18H10zM10 108h110v18H10z"/></svg><figcaption>SVG with its own white background → as is</figcaption></figure>
+  </div>
+</body>
+</html>
