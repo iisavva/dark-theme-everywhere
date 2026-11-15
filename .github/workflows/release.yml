@@ -30,7 +30,7 @@ jobs:
           fi
 
       - name: Test
-        run: node test/background.test.js && node test/stats.test.js
+        run: node test/background.test.js && node test/stats.test.js && node test/i18n.test.js
 
       - name: Build package
         run: bash tools/build.sh

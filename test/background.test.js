@@ -25,6 +25,7 @@ function loadWorker(serve) {
       runtime: { onMessage: { addListener: (f) => { onMessage = f; } }, onInstalled: { addListener() {} }, getManifest() {} },
       commands: { onCommand: { addListener() {} } },
       action: {},
+      storage: { local: { get: async (d) => d }, onChanged: { addListener() {} } },
       tabs: {
         onRemoved: { addListener: (f) => { log.onRemoved = f; } },
         sendMessage: async () => ({ ready: true, active: true, nativeDark: false, host: 'secret.example.com' })
@@ -65,6 +66,7 @@ function loadWorker(serve) {
   ctx.self = ctx;
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(root, 'src/shared.js'), 'utf8'), ctx);
+  vm.runInContext(fs.readFileSync(path.join(root, 'ui/i18n.js'), 'utf8'), ctx);
   vm.runInContext(fs.readFileSync(path.join(root, 'src/background.js'), 'utf8'), ctx);
   const ask = (url, page = 'https://news.example.com/', tabId = 1, documentId = 'doc-' + tabId) =>
     new Promise((resolve) =>

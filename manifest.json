@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Тёмная тема везде",
-  "short_name": "Тёмная тема",
+  "name": "__MSG_extName__",
+  "default_locale": "en",
+  "short_name": "__MSG_extShortName__",
   "version": "1.0.11",
-  "description": "Тёмная тема для любого сайта: умная обработка картинок и логотипов, включение для всех сайтов или для отдельных.",
+  "description": "__MSG_extDescription__",
   "icons": {
     "16": "icons/on-16.png",
     "32": "icons/on-32.png",
@@ -14,7 +15,7 @@
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "src/background.js",
-    "scripts": ["src/shared.js", "src/background.js"]
+    "scripts": ["src/shared.js", "ui/i18n.js", "src/background.js"]
   },
   "content_scripts": [
     {
@@ -26,7 +27,7 @@
     }
   ],
   "action": {
-    "default_title": "Тёмная тема",
+    "default_title": "__MSG_actionTitle__",
     "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "icons/on-16.png",
@@ -41,11 +42,11 @@
   "commands": {
     "toggle-site": {
       "suggested_key": { "default": "Alt+Shift+D" },
-      "description": "Включить/выключить тёмную тему на текущем сайте"
+      "description": "__MSG_cmdToggleSite__"
     },
     "toggle-global": {
       "suggested_key": { "default": "Alt+Shift+G" },
-      "description": "Включить/выключить тёмную тему для всех сайтов"
+      "description": "__MSG_cmdToggleGlobal__"
     }
   },
   "browser_specific_settings": {

@@ -16,7 +16,7 @@ mkdir -p "$build"
 
 cd "$root"
 # Only tracked files: nothing from a local working copy (keys, temp files) can end up in the package.
-git ls-files -z manifest.json src popup options ui icons | xargs -0 -I{} cp --parents {} "$build/"
+git ls-files -z manifest.json _locales src popup options ui icons | xargs -0 -I{} cp --parents {} "$build/"
 
 stamp=$(git log -1 --format=%ct)
 find "$build" -exec touch -h -d "@$stamp" {} +

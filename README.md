@@ -3,14 +3,16 @@
 A browser extension (Manifest V3) that makes any website dark.
 Works in Chrome, Edge, Yandex Browser, Opera, Brave, Firefox 121+ and Safari 16.4+ (macOS).
 
-The extension's interface is in Russian; Russian labels are given in parentheses below.
+The interface is in English by default and also available in Russian: switch the language at the
+bottom of the popup or at the top of the options page. The extension's name and description in the
+browser's extension list follow the browser's own language (Russian for a Russian browser,
+English otherwise).
 
 ## Features
 
 - **Dark theme for any website**, including sites with inline styles, canvas and iframes.
-- **Toggle for all sites and for a specific site.** The popup has a global switch, "All sites"
-  («Все сайты»), and a three-way control for the current site: "As everywhere / On / Off"
-  («Как везде / Включить / Выключить»). A site rule takes priority over the global switch; a rule
+- **Toggle for all sites and for a specific site.** The popup has a global switch, "All sites",
+  and a three-way control for the current site: "Default / On / Off". A site rule takes priority over the global switch; a rule
   for `example.com` also applies to its subdomains. The full list of rules is on the options page.
 - **Smart image handling:**
   - photos, videos and canvas keep their original colours;
@@ -27,12 +29,14 @@ The extension's interface is in Russian; Russian labels are given in parentheses
   Excalidraw, draw.io, FigJam and the like) the drawing area is shown in original colours too, on the
   page's original background, so a stroke looks exactly like the colour picked for it; the editor's
   UI around it stays dark. `<input type="color">` keeps its colour as well.
+- **Google Sheets:** the cell grid (drawn on one large canvas) is dark like the rest of the page;
+  charts and pictures in a sheet keep their colours.
 - **Video players are left as on the site.** A player on the page (the video with its controls,
   progress bar, title and captions) is not themed, and neither are players embedded in an iframe
   (YouTube, Vimeo, Rutube, VK Video, OK, Dzen, Dailymotion, Twitch and others, or any frame that is
   mostly one video).
 - **Sites that are already dark** are detected and left alone (otherwise they would turn light).
-  To force the theme on such a site, press "On" («Включить»).
+  To force the theme on such a site, press "On".
 - Brightness, contrast, sepia, grayscale and image brightness settings.
 - Keyboard shortcuts: `Alt+Shift+D` for the current site, `Alt+Shift+G` for all sites.
 

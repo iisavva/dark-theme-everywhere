@@ -28,7 +28,7 @@ mkdir -p "$ext"
 
 cd "$root"
 # Only tracked files go into the package (same set as tools/build.sh).
-git ls-files -z manifest.json src popup options ui icons | xargs -0 -I{} rsync -R {} "$ext/"
+git ls-files -z manifest.json _locales src popup options ui icons | xargs -0 -I{} rsync -R {} "$ext/"
 node tools/safari/manifest.js manifest.json "$ext/manifest.json"
 
 version=$(node -p "require('./manifest.json').version")

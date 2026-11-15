@@ -2,7 +2,11 @@
   'use strict';
 
   const $ = (id) => document.getElementById(id);
+  const t = I18N.t;
   let settings = await DT.loadSettings();
+  I18N.setLang(settings.language);
+  I18N.apply();
+  I18N.bindSelect($('language'));
 
   function renderSites() {
     const tbody = $('sites');
@@ -13,11 +17,11 @@
       const tr = document.createElement('tr');
 
       const name = document.createElement('td');
-      name.textContent = key === 'file' ? 'Локальные файлы (file://)' : key;
+      name.textContent = key === 'file' ? t('localFilesRule') : key;
 
       const stateCell = document.createElement('td');
       const select = document.createElement('select');
-      for (const [v, label] of [['on', 'Всегда тёмная'], ['off', 'Никогда не тёмная']]) {
+      for (const [v, label] of [['on', t('alwaysDark')], ['off', t('neverDark')]]) {
         const o = document.createElement('option');
         o.value = v;
         o.textContent = label;
@@ -31,8 +35,8 @@
       const del = document.createElement('button');
       del.className = 'del';
       del.type = 'button';
-      del.title = 'Удалить правило';
-      del.setAttribute('aria-label', 'Удалить правило для ' + key);
+      del.title = t('deleteRule');
+      del.setAttribute('aria-label', t('deleteRuleFor', { host: key }));
       del.textContent = '×';
       del.addEventListener('click', () => save(DT.sitesWith(settings, key, 'default')));
       delCell.appendChild(del);
@@ -43,6 +47,10 @@
   }
 
   function render() {
+    if (I18N.lang !== I18N.setLang(settings.language)) {
+      I18N.apply();
+      $('language').value = I18N.lang;
+    }
     $('global').checked = !!settings.enabled;
     SettingsForm.fill(settings);
     renderSites();
@@ -59,7 +67,7 @@
     const raw = $('addHost').value;
     const host = /^file:/i.test(raw.trim()) ? 'file' : DT.normalizeHost(raw);
     if (!host || !/^[a-z0-9.-]+$|^file$/i.test(host)) {
-      $('addHost').setCustomValidity('Введите домен, например example.com');
+      $('addHost').setCustomValidity(t('enterDomain'));
       $('addHost').reportValidity();
       return;
     }
@@ -70,14 +78,15 @@
 
   $('clearCache').addEventListener('click', async () => {
     await chrome.storage.local.remove('nativeDark');
-    $('clearCache').textContent = 'Готово';
-    setTimeout(() => { $('clearCache').textContent = 'Забыть найденные тёмные сайты'; }, 1500);
+    $('clearCache').textContent = t('done');
+    setTimeout(() => { $('clearCache').textContent = t('clearCache'); }, 1500);
   });
 
   $('reset').addEventListener('click', async () => {
-    if (!confirm('Вернуть настройки по умолчанию? Список сайтов сохранится.')) return;
+    if (!confirm(t('resetConfirm'))) return;
     const defaults = Object.assign({}, DT.DEFAULTS);
     delete defaults.sites;
+    delete defaults.language; // the chosen interface language stays
     await chrome.storage.local.set(defaults);
   });
 

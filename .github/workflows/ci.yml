@@ -24,7 +24,7 @@ jobs:
         run: node -e "const m = require('./manifest.json'); if (!/^\d+\.\d+\.\d+$/.test(m.version)) throw new Error('bad version ' + m.version)"
 
       - name: Tests (background worker, image statistics)
-        run: node test/background.test.js && node test/stats.test.js
+        run: node test/background.test.js && node test/stats.test.js && node test/i18n.test.js
 
       - name: Build package
         run: bash tools/build.sh

@@ -1,89 +1,83 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Тёмная тема — настройки</title>
+  <title data-i18n="optionsTitle">Dark Theme — settings</title>
   <link rel="stylesheet" href="../ui/ui.css">
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
   <main>
     <header class="top">
-      <h1><img src="../icons/on-48.png" alt="" width="28" height="28"> Тёмная тема везде</h1>
-      <label class="switch">
-        <span>Включить для всех сайтов</span>
-        <input type="checkbox" id="global">
-        <i></i>
-      </label>
+      <h1><img src="../icons/on-48.png" alt="" width="28" height="28"> <span data-i18n="appFullName">Dark Theme Everywhere</span></h1>
+      <div class="top-controls">
+        <label class="lang"><span data-i18n="language">Language</span> <select id="language"></select></label>
+        <label class="switch">
+          <span data-i18n="enableAll">Enable for all sites</span>
+          <input type="checkbox" id="global">
+          <i></i>
+        </label>
+      </div>
     </header>
 
     <section class="card">
-      <h2>Сайты</h2>
-      <p class="hint">Правило для сайта важнее общего переключателя. Правило для <b>example.com</b>
-        действует и на его поддомены (<b>mail.example.com</b>), если у поддомена нет своего правила.</p>
+      <h2 data-i18n="sites">Sites</h2>
+      <p class="hint"><span data-i18n="sitesHint1"></span><b>example.com</b><span data-i18n="sitesHint2"></span><b>mail.example.com</b><span data-i18n="sitesHint3"></span></p>
       <form id="addForm" class="add">
         <input id="addHost" type="text" placeholder="example.com" autocomplete="off" spellcheck="false" required>
         <select id="addState">
-          <option value="on">Всегда тёмная</option>
-          <option value="off">Никогда не тёмная</option>
+          <option value="on" data-i18n="alwaysDark">Always dark</option>
+          <option value="off" data-i18n="neverDark">Never dark</option>
         </select>
-        <button type="submit" class="btn">Добавить</button>
+        <button type="submit" class="btn" data-i18n="add">Add</button>
       </form>
       <table class="sites">
-        <thead><tr><th>Сайт</th><th>Тёмная тема</th><th></th></tr></thead>
+        <thead><tr><th data-i18n="colSite">Site</th><th data-i18n="colTheme">Dark theme</th><th></th></tr></thead>
         <tbody id="sites"></tbody>
       </table>
-      <p class="empty" id="empty">Правил пока нет. Их удобно добавлять из всплывающего окна расширения на нужном сайте.</p>
+      <p class="empty" id="empty" data-i18n="emptyRules"></p>
     </section>
 
     <section class="card grid">
       <div>
-        <h2>Цвета</h2>
-        <div class="range"><label for="brightness">Яркость</label><output data-for="brightness"></output>
+        <h2 data-i18n="colors">Colours</h2>
+        <div class="range"><label for="brightness" data-i18n="brightness">Brightness</label><output data-for="brightness"></output>
           <input type="range" id="brightness" min="50" max="150" step="5"></div>
-        <div class="range"><label for="contrast">Контраст</label><output data-for="contrast"></output>
+        <div class="range"><label for="contrast" data-i18n="contrast">Contrast</label><output data-for="contrast"></output>
           <input type="range" id="contrast" min="50" max="150" step="5"></div>
-        <div class="range"><label for="sepia">Сепия</label><output data-for="sepia"></output>
+        <div class="range"><label for="sepia" data-i18n="sepia">Sepia</label><output data-for="sepia"></output>
           <input type="range" id="sepia" min="0" max="100" step="5"></div>
-        <div class="range"><label for="grayscale">Оттенки серого</label><output data-for="grayscale"></output>
+        <div class="range"><label for="grayscale" data-i18n="grayscale">Grayscale</label><output data-for="grayscale"></output>
           <input type="range" id="grayscale" min="0" max="100" step="5"></div>
-        <div class="range"><label for="imageBrightness">Яркость картинок и видео</label><output data-for="imageBrightness"></output>
+        <div class="range"><label for="imageBrightness" data-i18n="imageBrightnessFull">Image and video brightness</label><output data-for="imageBrightness"></output>
           <input type="range" id="imageBrightness" min="50" max="100" step="5"></div>
-        <p class="hint">Двойной щелчок по ползунку возвращает значение по умолчанию.</p>
+        <p class="hint" data-i18n="sliderHint"></p>
       </div>
       <div>
-        <h2>Картинки и поведение</h2>
+        <h2 data-i18n="imagesBehaviour">Pictures and behaviour</h2>
         <label class="check"><input type="checkbox" id="smartImages">
-          <span>Умная обработка картинок и цветов
-            <small>Расширение смотрит на прозрачность и яркость картинки и на фон за ней. Чёрный логотип
-              на прозрачном фоне, который пропал бы на тёмной странице, становится светлым; фотографии
-              остаются как есть. Палитры цветов (выбор цвета кисти на онлайн-досках, цвета товара в
-              магазине) показываются в настоящих цветах, а на досках и в редакторах — и область рисования,
-              чтобы нарисованное совпадало с выбранным цветом.</small></span></label>
+          <span><span data-i18n="smartImages"></span><small data-i18n="smartImagesHintLong"></small></span></label>
         <label class="check"><input type="checkbox" id="invertDocImages">
-          <span>Инвертировать светлые картинки с текстом
-            <small>Схемы, графики, скриншоты документов — белый фон станет тёмным, чёрные буквы светлыми.</small></span></label>
+          <span><span data-i18n="invertDoc"></span><small data-i18n="invertDocHintLong"></small></span></label>
         <label class="check"><input type="checkbox" id="detectDarkSites">
-          <span>Не трогать сайты, которые уже тёмные
-            <small>Иначе тёмный сайт после инверсии стал бы светлым.</small></span></label>
+          <span><span data-i18n="detectDark"></span><small data-i18n="detectDarkHint"></small></span></label>
         <div class="actions">
-          <button type="button" class="btn ghost" id="clearCache">Забыть найденные тёмные сайты</button>
-          <button type="button" class="btn ghost" id="reset">Сбросить настройки</button>
+          <button type="button" class="btn ghost" id="clearCache" data-i18n="clearCache">Forget detected dark sites</button>
+          <button type="button" class="btn ghost" id="reset" data-i18n="reset">Reset settings</button>
         </div>
       </div>
     </section>
 
     <section class="card">
-      <h2>Горячие клавиши</h2>
-      <p><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd> — переключить тему на текущем сайте,
-        <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd> — для всех сайтов.</p>
-      <p class="hint">Изменить сочетания: <code>chrome://extensions/shortcuts</code> (Chrome, Edge, Яндекс)
-        или «Управление расширениями → ⚙ → Управление горячими клавишами» в Firefox.</p>
+      <h2 data-i18n="shortcuts">Keyboard shortcuts</h2>
+      <p><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd><span data-i18n="keysSite"></span><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd><span data-i18n="keysAll"></span></p>
+      <p class="hint"><span data-i18n="keysHint1"></span><code>chrome://extensions/shortcuts</code><span data-i18n="keysHint2"></span></p>
     </section>
   </main>
 
   <script src="../src/shared.js"></script>
+  <script src="../ui/i18n.js"></script>
   <script src="../ui/settings-form.js"></script>
   <script src="options.js"></script>
 </body>

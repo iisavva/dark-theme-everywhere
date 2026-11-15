@@ -1,0 +1,8 @@
+{
+  "extName": { "message": "Dark Theme Everywhere" },
+  "extShortName": { "message": "Dark Theme" },
+  "extDescription": { "message": "A dark theme for any website: smart handling of pictures and logos, on for all sites or for chosen ones." },
+  "actionTitle": { "message": "Dark Theme" },
+  "cmdToggleSite": { "message": "Turn the dark theme on or off on the current site" },
+  "cmdToggleGlobal": { "message": "Turn the dark theme on or off for all sites" }
+}

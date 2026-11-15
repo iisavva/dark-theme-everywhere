@@ -1,16 +1,16 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Тёмная тема</title>
+  <title data-i18n="appName">Dark Theme</title>
   <link rel="stylesheet" href="../ui/ui.css">
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <header class="top">
-    <div class="brand"><img src="../icons/on-32.png" alt="" width="20" height="20"> Тёмная тема</div>
-    <label class="switch" title="Тёмная тема для всех сайтов">
-      <span>Все сайты</span>
+    <div class="brand"><img src="../icons/on-32.png" alt="" width="20" height="20"> <span data-i18n="appName">Dark Theme</span></div>
+    <label class="switch" data-i18n-title="allSitesTitle">
+      <span data-i18n="allSites">All sites</span>
       <input type="checkbox" id="global">
       <i></i>
     </label>
@@ -18,40 +18,42 @@
 
   <section class="card" id="siteCard">
     <div class="host" id="host">—</div>
-    <div class="seg" id="siteSeg" role="radiogroup" aria-label="Тёмная тема на этом сайте">
-      <button type="button" data-v="default" role="radio">Как везде</button>
-      <button type="button" data-v="on" role="radio">Включить</button>
-      <button type="button" data-v="off" role="radio">Выключить</button>
+    <div class="seg" id="siteSeg" role="radiogroup" data-i18n-aria-label="siteGroup">
+      <button type="button" data-v="default" role="radio" data-i18n="siteDefault">Default</button>
+      <button type="button" data-v="on" role="radio" data-i18n="siteOn">On</button>
+      <button type="button" data-v="off" role="radio" data-i18n="siteOff">Off</button>
     </div>
     <div class="status" id="status"></div>
   </section>
 
   <section class="card">
-    <div class="range"><label for="brightness">Яркость</label><output data-for="brightness"></output>
+    <div class="range"><label for="brightness" data-i18n="brightness">Brightness</label><output data-for="brightness"></output>
       <input type="range" id="brightness" min="50" max="150" step="5"></div>
-    <div class="range"><label for="contrast">Контраст</label><output data-for="contrast"></output>
+    <div class="range"><label for="contrast" data-i18n="contrast">Contrast</label><output data-for="contrast"></output>
       <input type="range" id="contrast" min="50" max="150" step="5"></div>
-    <div class="range"><label for="sepia">Сепия</label><output data-for="sepia"></output>
+    <div class="range"><label for="sepia" data-i18n="sepia">Sepia</label><output data-for="sepia"></output>
       <input type="range" id="sepia" min="0" max="100" step="5"></div>
-    <div class="range"><label for="imageBrightness">Яркость картинок</label><output data-for="imageBrightness"></output>
+    <div class="range"><label for="imageBrightness" data-i18n="imageBrightness">Image brightness</label><output data-for="imageBrightness"></output>
       <input type="range" id="imageBrightness" min="50" max="100" step="5"></div>
   </section>
 
   <section class="card checks">
     <label class="check"><input type="checkbox" id="smartImages">
-      <span>Умная обработка картинок и цветов<small>Тёмные логотипы становятся светлыми, палитры цветов и доски для рисования — в настоящих цветах</small></span></label>
+      <span><span data-i18n="smartImages"></span><small data-i18n="smartImagesHint"></small></span></label>
     <label class="check"><input type="checkbox" id="invertDocImages">
-      <span>Инвертировать светлые картинки с текстом<small>Схемы, скриншоты документов, чёрный текст на белом</small></span></label>
+      <span><span data-i18n="invertDoc"></span><small data-i18n="invertDocHint"></small></span></label>
     <label class="check"><input type="checkbox" id="detectDarkSites">
-      <span>Не трогать сайты, которые уже тёмные</span></label>
+      <span data-i18n="detectDark"></span></label>
   </section>
 
   <footer>
-    <a href="#" id="openOptions">Список сайтов и настройки</a>
-    <span class="keys"><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd> — этот сайт</span>
+    <a href="#" id="openOptions" data-i18n="openOptions">Site list and settings</a>
+    <span class="keys"><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd> <span data-i18n="keysThisSite">— this site</span></span>
   </footer>
+  <div class="lang"><label for="language" data-i18n="language">Language</label> <select id="language"></select></div>
 
   <script src="../src/shared.js"></script>
+  <script src="../ui/i18n.js"></script>
   <script src="../ui/settings-form.js"></script>
   <script src="popup.js"></script>
 </body>

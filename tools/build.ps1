@@ -21,7 +21,7 @@ if (-not $browser) { throw 'Chrome or Edge not found' }
 if (Test-Path $build) { Remove-Item -Recurse -Force $build }
 New-Item -ItemType Directory -Force $build | Out-Null
 Copy-Item (Join-Path $root 'manifest.json') $build
-foreach ($dir in 'src', 'popup', 'options', 'ui', 'icons') {
+foreach ($dir in '_locales', 'src', 'popup', 'options', 'ui', 'icons') {
   Copy-Item -Recurse (Join-Path $root $dir) (Join-Path $build $dir)
 }
 
@@ -30,7 +30,7 @@ $zip = Join-Path $dist "$name.zip"
 if (Test-Path $zip) { Remove-Item -Force $zip }
 # tar.exe (built into Windows 10+) writes zip entries with "/" separators, unlike Compress-Archive in PS 5.1
 Push-Location $build
-try { tar.exe -a -c -f $zip manifest.json src popup options ui icons } finally { Pop-Location }
+try { tar.exe -a -c -f $zip manifest.json _locales src popup options ui icons } finally { Pop-Location }
 if ($LASTEXITCODE -ne 0) { throw 'zip failed' }
 
 # CRX

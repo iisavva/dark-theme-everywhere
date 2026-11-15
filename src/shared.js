@@ -15,7 +15,8 @@
     imageBrightness: 90,    // % brightness of photos and pictures
     smartImages: true,      // analyse images: make dark logos/icons visible
     invertDocImages: false, // invert light pictures with dark text (schemes, screenshots)
-    detectDarkSites: true   // do not touch sites that are already dark
+    detectDarkSites: true,  // do not touch sites that are already dark
+    language: 'en'          // interface language: 'en' | 'ru'
   };
 
   const IMAGE_KEYS = ['smartImages', 'invertDocImages'];

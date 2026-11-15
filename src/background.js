@@ -2,7 +2,13 @@
  * Background worker: analyses cross-origin images, keeps the toolbar icon in sync,
  * relays the top page state to iframes and handles keyboard shortcuts.
  */
-if (typeof importScripts === 'function' && typeof DT === 'undefined') importScripts('shared.js');
+if (typeof importScripts === 'function' && typeof DT === 'undefined') importScripts('shared.js', '../ui/i18n.js');
+
+/* Interface language of the toolbar title (the `language` setting, English by default). */
+DT.loadSettings().then((s) => I18N.setLang(s.language), () => {});
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.language) I18N.setLang(changes.language.newValue);
+});
 
 /* ------------------------------------------------------- image analysis */
 
@@ -286,7 +292,7 @@ function iconSet(on) {
 
 function setTabIcon(tabId, on) {
   chrome.action.setIcon({ tabId, path: iconSet(on) }).catch(() => {});
-  chrome.action.setTitle({ tabId, title: on ? 'Тёмная тема: включена' : 'Тёмная тема: выключена' }).catch(() => {});
+  chrome.action.setTitle({ tabId, title: I18N.t(on ? 'titleOn' : 'titleOff') }).catch(() => {});
 }
 
 /* ------------------------------------------------------------- messages */

@@ -2,7 +2,11 @@
   'use strict';
 
   const $ = (id) => document.getElementById(id);
+  const t = I18N.t;
   let settings = await DT.loadSettings();
+  I18N.setLang(settings.language);
+  I18N.apply();
+  I18N.bindSelect($('language'));
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const host = tab ? DT.hostFromUrl(tab.url) : null;
   let status = null;
@@ -23,17 +27,21 @@
   }
 
   function render() {
+    if (I18N.lang !== I18N.setLang(settings.language) || document.documentElement.lang !== I18N.lang) {
+      I18N.apply();
+      $('language').value = I18N.lang;
+    }
     SettingsForm.fill(settings);
     $('global').checked = !!settings.enabled;
 
     const card = $('siteCard');
     if (!host) {
-      $('host').textContent = 'Служебная страница';
+      $('host').textContent = t('servicePage');
       card.classList.add('disabled');
-      $('status').textContent = 'Расширения не работают на этой странице.';
+      $('status').textContent = t('serviceStatus');
       return;
     }
-    $('host').textContent = host === 'file' ? 'Локальные файлы' : host;
+    $('host').textContent = host === 'file' ? t('localFiles') : host;
 
     const state = siteState();
     for (const b of $('siteSeg').querySelectorAll('button')) {
@@ -45,18 +53,16 @@
     const lines = [];
     const ov = DT.findOverride(settings, host);
     if (ov && ov.key !== DT.normalizeHost(host)) {
-      lines.push(`Действует правило для ${ov.key}: ${ov.value ? 'включено' : 'выключено'}.`);
+      lines.push(t('ruleFor', { host: ov.key, state: t(ov.value ? 'stateOn' : 'stateOff') }));
     }
     if (!status || !status.ready) {
-      lines.push(host === 'file'
-        ? 'Для локальных файлов разрешите доступ к URL файлов в настройках расширения.'
-        : 'Обновите страницу, чтобы расширение начало работать на ней.');
+      lines.push(t(host === 'file' ? 'needFileAccess' : 'reloadPage'));
     } else if (status.active) {
-      lines.push('Тёмная тема включена.');
+      lines.push(t('statusOn'));
     } else if (status.nativeDark && DT.isEnabledFor(settings, host) && settings.detectDarkSites) {
-      lines.push('Сайт уже тёмный — тема не применяется. Нажмите «Включить», чтобы применить принудительно.');
+      lines.push(t('statusNativeDark'));
     } else {
-      lines.push('Тёмная тема выключена.');
+      lines.push(t('statusOff'));
     }
     $('status').textContent = lines.join(' ');
     $('status').classList.toggle('on', !!(status && status.active));

@@ -27,3 +27,5 @@ input[type=text]:focus, select:focus { outline: 2px solid var(--accent); outline
 .sites:has(tbody:empty) { display: none; }
 .empty { color: var(--muted); margin: 0; }
 code { background: #2a2f39; padding: 1px 5px; border-radius: 4px; }
+.top-controls { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.lang { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
