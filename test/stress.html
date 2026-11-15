@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Тест: нагрузка</title>
+  <script>
+    if (/[?&]stub\b/.test(location.search)) {
+      document.write('<script src="chrome-stub.js"><\/script><script src="../src/shared.js"><\/script><script src="../src/content.js"><\/script>');
+    }
+  </script>
+  <style>
+    body { margin: 0; font: 13px Arial, sans-serif; }
+    #board { position: fixed; inset: 0; width: 100%; height: 100%; }
+    #ui { position: fixed; left: 10px; top: 10px; background: #fff; padding: 8px; }
+    #text { position: absolute; top: 120vh; }
+  </style>
+</head>
+<body>
+  <canvas id="board"></canvas>
+  <div id="ui">Панель</div>
+  <div id="text"></div>
+  <script>
+    // A large page: 20 000 elements with text below the board.
+    const t = document.getElementById('text');
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < 20000; i++) {
+      const p = document.createElement('p');
+      p.textContent = 'Строка ' + i;
+      frag.append(p);
+    }
+    t.append(frag);
+    // How long the main thread is blocked: sum of tasks over 50 ms.
+    window.__long = [];
+    new PerformanceObserver((l) => l.getEntries().forEach((e) => window.__long.push(Math.round(e.duration))))
+      .observe({ entryTypes: ['longtask'] });
+    // An app that updates the board canvas style every frame (pan / zoom).
+    window.animate = (ms) => new Promise((done) => {
+      const c = document.getElementById('board');
+      const end = performance.now() + ms;
+      let frames = 0;
+      (function tick() {
+        c.style.transform = 'translateZ(0) scale(' + (1 + (frames % 2) * 0.0001) + ')';
+        frames++;
+        if (performance.now() < end) setTimeout(tick, 16); else done(frames);
+      })();
+    });
+  </script>
+</body>
+</html>

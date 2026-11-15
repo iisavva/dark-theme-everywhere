@@ -539,11 +539,34 @@
     }
   }
 
+  /*
+   * A board app may change its canvas (style, size) on every frame while the user pans or zooms.
+   * Every change queues the canvas again; the surface check (hit testing, a walk over the page
+   * text) then runs at most once a second, with one deferred run for the last change.
+   */
+  let surfaceTimer = 0;
+  let surfaceAt = -Infinity;
+
+  function surfacesSoon() {
+    const wait = 1000 - (performance.now() - surfaceAt);
+    if (wait <= 0) {
+      surfaceAt = performance.now();
+      editorCheck.at = -Infinity;
+      markSurfaces();
+      return;
+    }
+    if (!surfaceTimer) {
+      surfaceTimer = setTimeout(() => { surfaceTimer = 0; if (!dead) surfacesSoon(); }, wait);
+    }
+  }
+
   /** Whether visible page text lies under the surface (then it is an overlay, not a board). */
   function textUnder(s, r) {
     const walker = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_TEXT);
     let checked = 0;
-    for (let n = walker.nextNode(); n && checked < 40; n = walker.nextNode()) {
+    let visited = 0;
+    // Bounded: on a page with a huge amount of text only the first text nodes are looked at.
+    for (let n = walker.nextNode(); n && checked < 40 && visited < 2000; n = walker.nextNode(), visited++) {
       if (!n.nodeValue.trim()) continue;
       const el = n.parentElement;
       if (!el || el.closest('script, style, noscript, template')) continue;
@@ -602,8 +625,7 @@
     if (!settings.smartImages) return;
     if (tag === 'canvas' || tag === 'svg') {
       if ((tag === 'canvas' || paletteSeen) && isLarge(el)) {
-        editorCheck.at = -Infinity;
-        markSurfaces();
+        surfacesSoon();
         return;
       }
       if (tag === 'canvas') return;
@@ -643,7 +665,10 @@
     if (root.querySelectorAll) root.querySelectorAll('*').forEach(enqueue);
   }
 
+  let lastScanArea = 0; // window area at the last full scan
+
   function fullScan() {
+    lastScanArea = innerWidth * innerHeight;
     if (document.documentElement) scanTree(document.documentElement);
   }
 
@@ -858,10 +883,18 @@
 
     // Sizes decide what is a colour swatch or a drawing surface: look again when they change
     // (and when a page that was loaded in a hidden window or tab is shown).
+    // Only when the window size really changed since the last full scan (or the page was laid out
+    // with no size at all): a full scan of a big page is not free, and switching tabs is frequent.
     let resizeTimer = 0;
     const rescan = () => {
       clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => { if (mode && !dead) { editorCheck.at = -Infinity; fullScan(); } }, 500);
+      resizeTimer = setTimeout(() => {
+        if (!mode || dead) return;
+        const area = innerWidth * innerHeight;
+        if (lastScanArea > 0 && Math.abs(area - lastScanArea) / lastScanArea < 0.2) return;
+        editorCheck.at = -Infinity;
+        fullScan();
+      }, 500);
     };
     window.addEventListener('resize', rescan);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) rescan(); });
