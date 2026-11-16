@@ -1164,6 +1164,7 @@
     const swallow = (e) => { e.preventDefault(); e.stopImmediatePropagation(); };
     const listeners = [
       ['mousemove', (e) => {
+        if (!e.isTrusted) return; // only the user's own mouse, not events made up by the page
         const el = e.target;
         if (!el || el.nodeType !== 1 || el.hasAttribute(PICKER)) return;
         target = el;
@@ -1173,6 +1174,7 @@
       ['mousedown', swallow], ['mouseup', swallow], ['pointerdown', swallow], ['pointerup', swallow],
       ['click', async (e) => {
         swallow(e);
+        if (!e.isTrusted) return; // the page cannot pick an element on the user's behalf
         const el = target;
         stopPicker();
         if (!el || el === document.documentElement || el === document.body) return;
@@ -1181,7 +1183,7 @@
         const fresh = await D.loadSettings();
         await chrome.storage.local.set({ exclusions: D.exclusionsWith(fresh, host, sel, true) });
       }],
-      ['keydown', (e) => { if (e.key === 'Escape') { swallow(e); stopPicker(); } }]
+      ['keydown', (e) => { if (e.isTrusted && e.key === 'Escape') { swallow(e); stopPicker(); } }]
     ];
     for (const [type, fn] of listeners) window.addEventListener(type, fn, true);
     picking = { box, tip, listeners };

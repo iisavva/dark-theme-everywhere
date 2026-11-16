@@ -29,8 +29,24 @@ English otherwise).
   Excalidraw, draw.io, FigJam and the like) the drawing area is shown in original colours too, on the
   page's original background, so a stroke looks exactly like the colour picked for it; the editor's
   UI around it stays dark. `<input type="color">` keeps its colour as well.
-- **Google Sheets:** the cell grid (drawn on one large canvas) is dark like the rest of the page;
-  charts and pictures in a sheet keep their colours.
+- **Google Sheets and Docs:** the cell grid and the document pages (drawn on canvases) are dark
+  like the rest of the page; charts and pictures in a sheet keep their colours. **Google Slides:** the
+  slides and their thumbnails keep their design, the editor and speaker notes are dark.
+- **PDF** in the browser's built-in viewer (Chrome, Edge) is themed: dark pages, light text.
+- **Sites with their own dark theme** (YouTube, GitHub, Wikipedia, Stack Overflow and other Stack
+  Exchange sites) get it switched on instead of being inverted. Can be turned off in the options.
+- **Schedule:** always, together with the system's dark mode, or at set times (for example
+  20:00–07:00, also across midnight). Site rules apply regardless of the schedule.
+- **Pick an element to leave as is:** in the popup, click "Pick an element to leave as is", then
+  click any element on the page. It is shown as on the site from then on (with the site's own
+  background behind it if it is transparent). The list per site is on the options page.
+- **Badge on the toolbar icon:** ON / OFF when the current site has its own rule, or the number of
+  elements left as on the site.
+- **Two engines:** *Inversion* (default) turns the whole page over with a CSS filter and turns
+  pictures back; it works on any site. *Colour rewriting* (beta) changes the site's own colours —
+  light backgrounds dark, dark text light, borders and gradients too — and leaves pictures, videos
+  and emoji untouched; it is more precise but may miss some elements (pseudo-elements, colours
+  that only appear on hover).
 - **Video players are left as on the site.** A player on the page (the video with its controls,
   progress bar, title and captions) is not themed, and neither are players embedded in an iframe
   (YouTube, Vimeo, Rutube, VK Video, OK, Dzen, Dailymotion, Twitch and others, or any frame that is
@@ -218,7 +234,10 @@ browser API. With the extension installed, open the page without `?stub`.
 
 ## Limitations
 
-- Colour emoji in text are inverted along with the text.
+- Colour emoji in text are inverted along with the text (inversion engine; the colour rewriting
+  engine leaves them as they are).
+- PDF theming works in Chrome and Edge; Firefox shows PDFs in its own viewer, where extensions
+  cannot run. Pictures inside a PDF or drawn on a Google Docs page are inverted together with it.
 - Images inside a closed Shadow DOM are not processed.
 - Whiteboards that draw every shape as a separate small SVG instead of one canvas or SVG (tldraw,
   for example) are not recognised as a drawing area: there the shapes are themed with the page.
