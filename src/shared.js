@@ -16,7 +16,13 @@
     smartImages: true,      // analyse images: make dark logos/icons visible
     invertDocImages: false, // invert light pictures with dark text (schemes, screenshots)
     detectDarkSites: true,  // do not touch sites that are already dark
-    language: 'en'          // interface language: 'en' | 'ru'
+    language: 'en',         // interface language: 'en' | 'ru'
+    engine: 'filter',       // 'filter': the page is inverted | 'dynamic': its colours are rewritten (beta)
+    schedule: 'always',     // 'always' | 'system' (with the system's dark mode) | 'time' (from–to)
+    scheduleFrom: '20:00',
+    scheduleTo: '07:00',
+    useSiteThemes: true,    // switch on a site's own dark theme where it is known (YouTube, GitHub…)
+    exclusions: {}          // { "example.com": ["css selector", …] }: elements left as on the site
   };
 
   const IMAGE_KEYS = ['smartImages', 'invertDocImages'];
@@ -57,9 +63,70 @@
     return null;
   }
 
-  function isEnabledFor(settings, host) {
+  /* ---------- schedule ---------- */
+
+  /** "HH:MM" -> minutes after midnight, or null. */
+  function parseTime(value) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(value || ''));
+    if (!m) return null;
+    const h = Number(m[1]), min = Number(m[2]);
+    return h > 23 || min > 59 ? null : h * 60 + min;
+  }
+
+  /**
+   * Whether the schedule lets the theme on now. `systemDark`: the system is in dark mode
+   * (only known in pages, not in the background worker). A period may cross midnight.
+   */
+  function scheduleActive(settings, now, systemDark) {
+    if (settings.schedule === 'system') return !!systemDark;
+    if (settings.schedule !== 'time') return true;
+    const from = parseTime(settings.scheduleFrom), to = parseTime(settings.scheduleTo);
+    if (from === null || to === null || from === to) return true;
+    const d = now || new Date();
+    const m = d.getHours() * 60 + d.getMinutes();
+    return from < to ? m >= from && m < to : m >= from || m < to;
+  }
+
+  /** Milliseconds until the time schedule switches next, or null if there is no time schedule. */
+  function msToScheduleChange(settings, now) {
+    if (settings.schedule !== 'time') return null;
+    const from = parseTime(settings.scheduleFrom), to = parseTime(settings.scheduleTo);
+    if (from === null || to === null || from === to) return null;
+    const d = now || new Date();
+    const m = d.getHours() * 60 + d.getMinutes();
+    const wait = (b) => ((b - m + 1440) % 1440 || 1440);
+    const minutes = Math.min(wait(from), wait(to));
+    return (minutes * 60 - d.getSeconds()) * 1000 - d.getMilliseconds() + 500;
+  }
+
+  /**
+   * Whether the theme is on for a host: a site rule first, otherwise the global switch and the
+   * schedule. `env`: { now, systemDark } for the schedule.
+   */
+  function isEnabledFor(settings, host, env) {
     const o = findOverride(settings, host);
-    return o ? o.value : !!settings.enabled;
+    if (o) return o.value;
+    return !!settings.enabled && scheduleActive(settings, env && env.now, env && env.systemDark);
+  }
+
+  /* ---------- excluded elements ---------- */
+
+  const MAX_EXCLUSIONS = 50;
+
+  function exclusionsFor(settings, host) {
+    const all = (settings && settings.exclusions) || {};
+    const list = all[normalizeHost(host)];
+    return Array.isArray(list) ? list.filter((x) => typeof x === 'string' && x.length <= 500) : [];
+  }
+
+  /** A copy of the exclusions with `selector` added to or removed from the host's list. */
+  function exclusionsWith(settings, host, selector, add) {
+    const all = Object.assign({}, (settings && settings.exclusions) || {});
+    const key = normalizeHost(host);
+    let list = exclusionsFor(settings, key).filter((x) => x !== selector);
+    if (add) list = list.concat(selector).slice(-MAX_EXCLUSIONS);
+    if (list.length) all[key] = list; else delete all[key];
+    return all;
   }
 
   /** Returns a copy of the site rules with the rule for `host` set: 'default' | 'on' | 'off'. */
@@ -175,6 +242,12 @@
     hostFromUrl,
     findOverride,
     isEnabledFor,
+    scheduleActive,
+    msToScheduleChange,
+    parseTime,
+    exclusionsFor,
+    exclusionsWith,
+    MAX_EXCLUSIONS,
     sitesWith,
     isPlayerEmbedUrl,
     loadSettings,

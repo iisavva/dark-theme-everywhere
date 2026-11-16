@@ -5,10 +5,49 @@
 if (typeof importScripts === 'function' && typeof DT === 'undefined') importScripts('shared.js', '../ui/i18n.js');
 
 /* Interface language of the toolbar title (the `language` setting, English by default). */
-DT.loadSettings().then((s) => I18N.setLang(s.language), () => {});
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes.language) I18N.setLang(changes.language.newValue);
+let current = null; // settings
+DT.loadSettings().then((s) => { current = s; I18N.setLang(s.language); }, () => {});
+chrome.storage.onChanged.addListener(async (changes, area) => {
+  if (area !== 'local') return;
+  if (changes.language) I18N.setLang(changes.language.newValue);
+  if (changes.sites || changes.exclusions || changes.language) {
+    current = await DT.loadSettings();
+    refreshBadges();
+  }
 });
+
+/* ---------------------------------------------------- badge: site rules */
+/*
+ * The toolbar icon shows when the current site has its own rule: "ON" (always dark), "OFF"
+ * (never dark); a site with elements left as on the site but no rule shows their number.
+ */
+function badgeFor(url) {
+  const host = DT.hostFromUrl(url || '');
+  if (!host || !current) return { text: '', color: '#000' };
+  const ov = DT.findOverride(current, host);
+  if (ov) return ov.value ? { text: I18N.t('badgeOn'), color: '#3f8f4f' } : { text: I18N.t('badgeOff'), color: '#6b7280' };
+  const n = DT.exclusionsFor(current, host).length;
+  return n ? { text: String(n), color: '#b07d16' } : { text: '', color: '#000' };
+}
+
+function setBadge(tabId, url) {
+  const b = badgeFor(url);
+  chrome.action.setBadgeText({ tabId, text: b.text }).catch(() => {});
+  if (b.text) chrome.action.setBadgeBackgroundColor({ tabId, color: b.color }).catch(() => {});
+}
+
+async function refreshBadges() {
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) if (tab.url) setBadge(tab.id, tab.url);
+  } catch (e) { /* no tabs API (tests) */ }
+}
+
+if (chrome.tabs && chrome.tabs.onUpdated) {
+  chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+    if (info.url || info.status === 'complete') setBadge(tabId, tab.url);
+  });
+}
 
 /* ------------------------------------------------------- image analysis */
 
@@ -316,6 +355,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     case 'topState':
       if (sender.frameId !== 0) return;
       setTabIcon(tabId, !!msg.active);
+      setBadge(tabId, sender.tab.url);
       // Tell the iframes of this tab whether they are inside a themed page.
       chrome.tabs.sendMessage(tabId, { type: 'topState', active: !!msg.active }).catch(() => {});
       return;

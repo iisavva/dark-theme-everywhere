@@ -41,6 +41,41 @@
 
     <section class="card grid">
       <div>
+        <h2 data-i18n="schedule">When to turn on</h2>
+        <select id="schedule">
+          <option value="always" data-i18n="scheduleAlways">Always</option>
+          <option value="system" data-i18n="scheduleSystem">When the system is in dark mode</option>
+          <option value="time" data-i18n="scheduleTime">At set times</option>
+        </select>
+        <div class="times" id="times">
+          <label><span data-i18n="scheduleFrom">From</span> <input type="time" id="scheduleFrom"></label>
+          <label><span data-i18n="scheduleTo">to</span> <input type="time" id="scheduleTo"></label>
+        </div>
+        <p class="hint" data-i18n="scheduleHint"></p>
+      </div>
+      <div>
+        <h2 data-i18n="engine">Theme engine</h2>
+        <select id="engine">
+          <option value="filter" data-i18n="engineFilter">Inversion (works everywhere)</option>
+          <option value="dynamic" data-i18n="engineDynamic">Colour rewriting (beta, more precise)</option>
+        </select>
+        <p class="hint" data-i18n="engineHint"></p>
+        <label class="check"><input type="checkbox" id="useSiteThemes">
+          <span><span data-i18n="useSiteThemes"></span><small data-i18n="useSiteThemesHint"></small></span></label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 data-i18n="exclusions">Elements left as on the site</h2>
+      <p class="hint" data-i18n="exclusionsHint"></p>
+      <table class="sites" id="exclTable">
+        <tbody id="exclList"></tbody>
+      </table>
+      <p class="empty" id="exclEmpty" data-i18n="noExclusions"></p>
+    </section>
+
+    <section class="card grid">
+      <div>
         <h2 data-i18n="colors">Colours</h2>
         <div class="range"><label for="brightness" data-i18n="brightness">Brightness</label><output data-for="brightness"></output>
           <input type="range" id="brightness" min="50" max="150" step="5"></div>

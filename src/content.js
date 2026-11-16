@@ -27,6 +27,8 @@
   const COLOR = 'data-dt-c'; // colour swatch or drawing surface shown in its real colours
   const BOARD = 'data-dt-b'; // drawing surface that gets the page's original background behind it
   const PLAYER = 'data-dt-p'; // video player shown as on the site (video, controls, captions)
+  const EXCL = 'data-dt-x';  // element left as on the site (picked by the user, or a site rule)
+  const PICKER = 'data-dt-picker'; // the element picker's own overlay
   const STYLE_ID = 'dark-theme-everywhere-style';
   const INV = 'invert(1) hue-rotate(180deg)';
   /*
@@ -35,12 +37,27 @@
    * canvas, which would otherwise be taken for a drawing board and stay white). Charts and
    * pictures inserted into a sheet keep their colours.
    */
-  const THEMED_CANVAS = '#waffle-grid-container canvas:not(.waffle-embedded-object-overlay *)';
+  const THEMED_CANVAS = '#waffle-grid-container canvas:not(.waffle-embedded-object-overlay *), ' +
+    'canvas.kix-canvas-tile-content';
+  // Google Docs draws its pages on canvases as well (canvas.kix-canvas-tile-content): dark pages.
+  /*
+   * Elements always shown as on the site: the slides of Google Slides and their thumbnails keep
+   * their design (like presentation software in dark mode); the editor and speaker notes are dark.
+   */
+  const BUILTIN_ORIGINAL = ['#workspace #pages svg', '.punch-filmstrip-thumbnails'];
+  // A PDF shown by the browser's built-in viewer: themed with the page (dark pages, light text).
+  const PDF_EMBED = 'embed[type="application/pdf"], object[type="application/pdf"]';
+  const isPdf = document.contentType === 'application/pdf';
   const isTop = window === window.top;
   const host = isTop ? D.hostFromUrl(location.href) : null;
 
   let settings = null;
-  let mode = null;          // null | 'full' (top page) | 'images' (iframe) | 'player' (player iframe)
+  // null | 'full' (top page) | 'images' (iframe, filter engine) | 'frame' (iframe, dynamic engine)
+  // | 'player' (player iframe, filter engine)
+  let mode = null;
+  let scheduleTimer = 0;
+  let siteThemeOn = false;  // the site's own dark theme is switched on (YouTube, GitHub…)
+  let exclSelector = '';    // user and built-in exclusions of this page, as one selector list
   let nativeDark = false;   // the site is dark by itself
   let topActive = false;    // iframe: the top page is themed
   // iframe: a video player embedded by the page (YouTube, Vimeo…, or a frame that is mostly video)
@@ -84,6 +101,7 @@
         `:fullscreen { filter: ${INV} !important; }`
       ].join('\n');
     }
+    if (dynamic()) return buildDynamicCSS(cssMode);
     const full = cssMode === 'full';
     const s = settings;
     const F = `${INV} brightness(${pct(s.brightness, 100)}) contrast(${pct(s.contrast, 85)}) ` +
@@ -103,25 +121,60 @@
       r.push(`:fullscreen:not(video):not(img):not(canvas) { filter: ${F} !important; }`);
     }
     r.push(`${media.map((m) => m + `:not([${FLIP}])`).join(', ')}, [${KEEP}] { filter: ${K} !important; }`);
-    r.push(`${THEMED_CANVAS} { filter: none !important; }`);
+    r.push(`${THEMED_CANVAS}, ${PDF_EMBED} { filter: none !important; }`);
     // Colour swatches and drawing surfaces: original colours, without the photo dimming.
     // (The attribute is doubled to outrank `canvas:not([data-dt-f])` above.)
     r.push(`[${COLOR}][${COLOR}], input[type="color"] { filter: ${INV} !important; }`);
     r.push(`[${BOARD}] { background-color: ${rootBg} !important; }`);
     // SVG illustrations shown in original colours on their original background (see processSvgArt).
     for (const [css, token] of artBackdrops) {
-      r.push(`svg[${KEEP}="${token}"] { background-color: ${css} !important; }`);
+      r.push(`svg[${KEEP}="${token}"], [${EXCL}="${token}"] { background-color: ${css} !important; }`);
     }
-    // Video players: original colours, the video itself not dimmed either.
-    r.push(`[${PLAYER}][${PLAYER}] { filter: ${INV} !important; }`);
+    // Video players and excluded elements: original colours, not dimmed either.
+    r.push(`[${PLAYER}][${PLAYER}], [${EXCL}][${EXCL}] { filter: ${INV} !important; }`);
+    r.push(`[${PICKER}][${PICKER}] { filter: ${INV} !important; }`);
     r.push(`[${FLIP}] { filter: none !important; }`);
-    const restored = [`[${KEEP}]`, `[${COLOR}]`, `[${PLAYER}]`];
+    const restored = [`[${KEEP}]`, `[${COLOR}]`, `[${PLAYER}]`, `[${EXCL}]`];
     const inner = media.concat(restored, `[${FLIP}]`, 'input[type="color"]');
     r.push(`${restored.flatMap((a) => inner.map((m) => `${a} ${m}`)).join(', ')} { filter: none !important; }`);
     if (full) {
       r.push('video:fullscreen, img:fullscreen, canvas:fullscreen { filter: none !important; }');
       // A fullscreen player is painted outside <html>, so it is not inverted to begin with.
       r.push(`[${PLAYER}][${PLAYER}]:fullscreen { filter: none !important; }`);
+    }
+    return r.join('\n');
+  }
+
+  /*
+   * Dynamic engine (beta): the page is not inverted. Its colours are rewritten instead: every
+   * light background, dark text or light border colour found on an element gets a dark-theme
+   * version (see processDynamic), applied by an attribute that points to a rule below. Pictures,
+   * videos and canvases stay as they are; dark logos and the Google Sheets/Docs canvas are
+   * inverted on their own.
+   */
+  function buildDynamicCSS(cssMode) {
+    const s = settings;
+    const r = [];
+    const k = pct(s.imageBrightness, 90);
+    if (cssMode === 'full' || cssMode === 'frame') {
+      const root = parseColor(rootBg);
+      const bg = (root && mapBg(root)) || 'rgb(24, 26, 27)';
+      r.push(`html { background-color: ${bg} !important; color-scheme: dark !important; }`);
+      const extra = [];
+      if (pct(s.brightness, 100) !== '1.00') extra.push(`brightness(${pct(s.brightness, 100)})`);
+      if (pct(s.sepia, 0) !== '0.00') extra.push(`sepia(${pct(s.sepia, 0)})`);
+      if (pct(s.grayscale, 0) !== '0.00') extra.push(`grayscale(${pct(s.grayscale, 0)})`);
+      if (extra.length) r.push(`html { filter: ${extra.join(' ')} !important; }`);
+    }
+    if (k !== '1.00') r.push(`img:not([${FLIP}]), video { filter: brightness(${k}) !important; }`);
+    r.push(`[${FLIP}], ${THEMED_CANVAS}, ${PDF_EMBED} { filter: ${INV} !important; }`);
+    r.push(`[${BOARD}] { background-color: ${rootBg} !important; }`);
+    for (const [css, token] of artBackdrops) {
+      r.push(`svg[${KEEP}="${token}"], [${EXCL}="${token}"] { background-color: ${css} !important; }`);
+    }
+    for (const [kind, map] of Object.entries(dynMaps)) {
+      const { attr, prop } = DYN[kind];
+      for (const e of map.values()) r.push(`[${attr}="${e.i}"] { ${prop}: ${e.css} !important; }`);
     }
     return r.join('\n');
   }
@@ -139,18 +192,37 @@
 
   /* ----------------------------------------------------------- mode/state */
 
+  const dynamic = () => !!settings && settings.engine === 'dynamic';
+  const systemDark = () => { try { return matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) { return false; } };
+  const env = () => ({ now: new Date(), systemDark: systemDark() });
+
   function computeMode() {
     if (!settings) return null;
-    if (!isTop) return topActive ? (playerFrame ? 'player' : 'images') : null;
-    if (!host || !D.isEnabledFor(settings, host)) return null;
+    if (!isTop) {
+      if (!topActive) return null;
+      // With the filter engine the page around inverts the frame; with the dynamic engine every
+      // frame rewrites its own colours. A player frame is left as it is either way.
+      if (playerFrame) return dynamic() ? null : 'player';
+      return dynamic() ? 'frame' : 'images';
+    }
+    if (!host || !D.isEnabledFor(settings, host, env())) return null;
+    if (siteThemeOn) return null; // the site shows its own dark theme
     const ov = D.findOverride(settings, host);
     const forced = !!(ov && ov.value);
-    if (settings.detectDarkSites && nativeDark && !forced) return null;
+    if (settings.detectDarkSites && nativeDark && !forced && !isPdf) return null;
     return 'full';
+  }
+
+  /** Re-evaluates the mode when the time schedule switches. */
+  function armSchedule() {
+    clearTimeout(scheduleTimer);
+    const ms = isTop && settings ? D.msToScheduleChange(settings) : null;
+    if (ms) scheduleTimer = setTimeout(() => { if (!dead) { applySiteTheme(); update(); } }, Math.min(ms, 0x7fffffff));
   }
 
   function update(forceRescan) {
     if (dead) return;
+    armSchedule();
     const next = computeMode();
     const changed = next !== mode;
     mode = next;
@@ -161,7 +233,7 @@
       ensureStyle();
       const css = buildCSS(mode);
       if (styleEl.textContent !== css) styleEl.textContent = css;
-      const shadowCss = buildCSS(mode === 'player' ? 'player' : 'images');
+      const shadowCss = buildCSS(mode === 'player' ? 'player' : mode === 'full' ? 'images' : mode);
       shadowStyles.forEach((st) => { if (st.textContent !== shadowCss) st.textContent = shadowCss; });
       startObserving();
       if (changed || forceRescan) fullScan();
@@ -177,7 +249,8 @@
     seen = new WeakMap();
     paletteSeen = false;
     boardFound = false;
-    const attrs = [KEEP, FLIP, COLOR, BOARD, PLAYER];
+    dynMaps = { b: new Map(), t: new Map(), r: new Map(), g: new Map(), f: new Map(), s: new Map() };
+    const attrs = [KEEP, FLIP, COLOR, BOARD, PLAYER, ...DYN_ATTRS];
     const sel = attrs.map((a) => `[${a}]`).join(', ');
     const clear = (el) => attrs.forEach((a) => el.removeAttribute(a));
     document.querySelectorAll(sel).forEach(clear);
@@ -373,7 +446,9 @@
 
     const behind = backdropLum(parentOf(el));
     if (behind === null) return def;
-    const finalBg = 1 - behind; // what the background looks like after inversion
+    // What the background looks like in the dark theme: inverted by the filter engine; with the
+    // dynamic engine light backgrounds get dark (see mapBg) and dark ones stay as they are.
+    const finalBg = dynamic() ? (behind > 0.35 ? 0.07 + (1 - behind) * 0.42 : behind) : 1 - behind;
     const keepC = Math.abs(st.lum - finalBg);
     const flipC = Math.abs(1 - st.lum - finalBg);
     // A picture that blends into its original background (white text on a white page) must not
@@ -419,8 +494,13 @@
     const myGen = gen;
     getStats(url, null).then((st) => {
       if (myGen !== gen || !mode || seen.get(el) !== url) return;
-      if (decide(st, el, 'bg') === 'keep') el.setAttribute(KEEP, '');
+      const d = decide(st, el, 'bg');
+      if (d === 'keep') markAttr(el, KEEP, '');
       else el.removeAttribute(KEEP);
+      // Dynamic engine: the page is not inverted, so a dark transparent icon is inverted on its own
+      // (only without text in it: inverting would turn the text dark).
+      const inv = dynamic() && d === 'flip' && st && st.transparent >= 0.1 && !hasVisibleText(el);
+      if (inv) el.setAttribute(FLIP, ''); else if (el.hasAttribute(FLIP)) el.removeAttribute(FLIP);
     });
   }
 
@@ -516,7 +596,7 @@
       if (same.length < 4) continue;
       if (new Set(same.map(([, s]) => s.key)).size < 3) continue;
       if (same.filter(([n]) => interactive(n)).length < same.length / 2) continue;
-      for (const [n] of same) n.setAttribute(COLOR, '');
+      for (const [n] of same) markAttr(n, COLOR, '');
       if (!paletteSeen) {
         paletteSeen = true;
         markSurfaces();
@@ -560,7 +640,7 @@
     if (mode !== 'full') return;
     const surfaces = findSurfaces().filter((s) => s.localName === 'canvas' || paletteSeen);
     for (const s of surfaces) {
-      s.setAttribute(COLOR, '');
+      markAttr(s, COLOR, '');
       const r = s.getBoundingClientRect();
       const stack = document.elementsFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       const at = stack.indexOf(s);
@@ -655,7 +735,7 @@
     // On a page with a drawing surface a single round colour button (the current colour, a brush
     // slot) keeps its colour too.
     if (s.round && !el.childElementCount && editorPage() && interactive(el)) {
-      el.setAttribute(COLOR, '');
+      markAttr(el, COLOR, '');
     }
   }
 
@@ -685,7 +765,7 @@
     }
     if (prev && prev !== container) prev.removeAttribute(PLAYER);
     if (container) {
-      container.setAttribute(PLAYER, '');
+      markAttr(container, PLAYER, '');
       playerOf.set(v, container);
     } else {
       playerOf.delete(v);
@@ -713,42 +793,439 @@
         is = r.width >= innerWidth * 0.9 && r.height >= innerHeight * 0.9;
       }
     }
-    if (is && !was) el.setAttribute(COLOR, 'backdrop');
+    if (is && !was) markAttr(el, COLOR, 'backdrop');
     else if (!is && was) el.removeAttribute(COLOR);
     return is;
+  }
+
+  /* ------------------------------------------------------- dynamic engine */
+  /*
+   * Colours are read from the computed style of every element and mapped to a dark theme:
+   *  - backgrounds lighter than 35 % lightness get dark (hue kept, a little less saturated);
+   *  - text darker than 62 % lightness gets light; borders lighter than 30 % get dark;
+   *  - gradients get their colours mapped; dark fills and strokes of SVG icons get light.
+   * Already dark backgrounds and light text are left alone, so mapping a mapped colour changes
+   * nothing. Each new colour gets an index; the element gets an attribute with it, and the
+   * stylesheet a rule for it (only numbers go into the rules).
+   */
+  const DYN = {
+    b: { attr: 'data-dtb', prop: 'background-color' },
+    t: { attr: 'data-dtt', prop: 'color' },
+    r: { attr: 'data-dtr', prop: 'border-color' },
+    g: { attr: 'data-dtg', prop: 'background-image' },
+    f: { attr: 'data-dtf', prop: 'fill' },
+    s: { attr: 'data-dts', prop: 'stroke' }
+  };
+  const DYN_ATTRS = Object.values(DYN).map((d) => d.attr);
+  let dynMaps = { b: new Map(), t: new Map(), r: new Map(), g: new Map(), f: new Map(), s: new Map() };
+  let dynDirty = false;
+  const dynLast = new WeakMap(); // element -> time of the last rewrite
+
+  function toHsl(c) {
+    const r = c.r / 255, g = c.g / 255, b = c.b / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    let h = 0, s = 0;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      h /= 6;
+    }
+    return { h, s, l };
+  }
+
+  function fromHsl(h, s, l, a) {
+    const hue = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    let r = l, g = l, b = l;
+    if (s) {
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue(p, q, h + 1 / 3); g = hue(p, q, h); b = hue(p, q, h - 1 / 3);
+    }
+    const n = (v) => Math.round(Math.max(0, Math.min(1, v)) * 255);
+    const alpha = Math.round(Math.max(0, Math.min(1, a)) * 1000) / 1000;
+    return `rgba(${n(r)}, ${n(g)}, ${n(b)}, ${alpha})`;
+  }
+
+  function mapBg(c) {
+    const { h, s, l } = toHsl(c);
+    if (l <= 0.35) return null;
+    return fromHsl(h, s * 0.8, 0.07 + (1 - l) * 0.42, c.a);
+  }
+
+  function mapText(c) {
+    const { h, s, l } = toHsl(c);
+    if (l >= 0.62) return null;
+    // black -> 90 % lightness, mid grey -> about 67 %; the contrast setting (85 % by default)
+    // spreads or narrows that around the middle.
+    const contrast = Math.max(0.5, Math.min(1.8, (Number(settings.contrast) || 85) / 85));
+    const l2 = 0.5 + (0.9 - l * 0.45 - 0.5) * contrast;
+    return fromHsl(h, s * 0.9, Math.max(0.62, Math.min(0.97, l2)), c.a);
+  }
+
+  function mapBorder(c) {
+    const { h, s, l } = toHsl(c);
+    if (l <= 0.3) return null;
+    return fromHsl(h, s * 0.8, 0.16 + (1 - l) * 0.35, c.a);
+  }
+
+  function dynIndex(kind, key, css) {
+    const map = dynMaps[kind];
+    let e = map.get(key);
+    if (!e) {
+      if (map.size >= 1500) return null;
+      e = { i: map.size, css };
+      map.set(key, e);
+      dynDirty = true;
+    }
+    return e.i;
+  }
+
+  function setDyn(el, kind, index) {
+    const attr = DYN[kind].attr;
+    if (index === null || index === undefined) {
+      if (el.hasAttribute(attr)) el.removeAttribute(attr);
+    } else if (el.getAttribute(attr) !== String(index)) {
+      el.setAttribute(attr, String(index));
+    }
+  }
+
+  function clearDyn(el) {
+    for (const a of DYN_ATTRS) if (el.hasAttribute(a)) el.removeAttribute(a);
+  }
+
+  /**
+   * Sets a "shown as on the site" mark (KEEP, COLOR, PLAYER, EXCL). With the dynamic engine the
+   * element and everything in it may already have rewritten colours: those are removed.
+   */
+  function markAttr(el, attr, value) {
+    el.setAttribute(attr, value);
+    if (dynamic()) {
+      clearDyn(el);
+      el.querySelectorAll(DYN_ATTRS.map((a) => `[${a}]`).join(', ')).forEach(clearDyn);
+    }
+  }
+
+  /** Elements shown as on the site: their colours are not rewritten. */
+  function keepsOriginal(el) {
+    return !!(el.closest && el.closest(`[${COLOR}], [${PLAYER}], [${EXCL}], [${KEEP}], [${PICKER}]`));
+  }
+
+  const GRADIENT_SAFE = /^[a-z0-9\s(),.%#-]+$/i;
+
+  function processDynamic(el) {
+    if (!dynamic() || !mode || mode === 'player') return;
+    if (keepsOriginal(el)) { clearDyn(el); return; }
+    // Scripts that animate inline styles would make this run on every frame.
+    const now = performance.now();
+    const last = dynLast.get(el);
+    if (last && now - last < 300) { laterSoon(el); return; }
+    dynLast.set(el, now);
+    // Read the site's own colours, not ours.
+    clearDyn(el);
+    const cs = getComputedStyle(el);
+    const svgShape = el instanceof SVGElement && el.localName !== 'svg';
+    if (svgShape) {
+      const root = outerSvg(el);
+      if (root && root.hasAttribute(KEEP)) return; // an illustration keeps its colours
+      for (const [kind, value] of [['f', cs.fill], ['s', cs.stroke]]) {
+        const c = /^rgba?\(/.test(value) ? parseColor(value) : null;
+        const css = c && c.a > 0.05 ? mapText(c) : null;
+        setDyn(el, kind, css ? dynIndex(kind, value, css) : null);
+      }
+      return;
+    }
+    if (el !== document.documentElement) {
+      const bc = parseColor(cs.backgroundColor);
+      const bcss = bc && bc.a > 0.02 ? mapBg(bc) : null;
+      setDyn(el, 'b', bcss ? dynIndex('b', cs.backgroundColor, bcss) : null);
+      const bi = cs.backgroundImage;
+      let gIndex = null;
+      if (bi && bi.includes('gradient(') && !bi.includes('url(')) {
+        const mapped = bi.replace(/rgba?\([^)]*\)/g, (m) => {
+          const c = parseColor(m);
+          return (c && mapBg(c)) || m;
+        });
+        if (mapped !== bi && GRADIENT_SAFE.test(mapped)) gIndex = dynIndex('g', bi, mapped);
+      }
+      setDyn(el, 'g', gIndex);
+    }
+    const tc = parseColor(cs.color);
+    const tcss = tc && tc.a > 0.05 ? mapText(tc) : null;
+    setDyn(el, 't', tcss ? dynIndex('t', cs.color, tcss) : null);
+    const hasBorder = ['Top', 'Right', 'Bottom', 'Left'].some((side) =>
+      parseFloat(cs[`border${side}Width`]) > 0 && cs[`border${side}Style`] !== 'none');
+    let rIndex = null;
+    if (hasBorder) {
+      const rc = parseColor(cs.borderTopColor);
+      const rcss = rc && rc.a > 0.05 ? mapBorder(rc) : null;
+      if (rcss) rIndex = dynIndex('r', cs.borderTopColor, rcss);
+    }
+    setDyn(el, 'r', rIndex);
+  }
+
+  const laterSet = new Set();
+  let laterTimer = 0;
+  function laterSoon(el) {
+    laterSet.add(el);
+    if (!laterTimer) {
+      laterTimer = setTimeout(() => {
+        laterTimer = 0;
+        if (!dead && mode) laterSet.forEach(enqueue);
+        laterSet.clear();
+      }, 400);
+    }
+  }
+
+  /** New colours were found: rebuild the stylesheet once per queue run. */
+  function flushDynamic() {
+    if (!dynDirty) return;
+    dynDirty = false;
+    update();
+  }
+
+  /* ------------------------------------------------------- site dark themes */
+  /*
+   * Sites with a dark theme of their own: it is switched on instead of inverting the page
+   * (checked on the live sites). The attributes are put back when the theme is turned off.
+   */
+  const SITE_THEMES = [
+    { hosts: ['youtube.com'], on: { attrs: { dark: '' } } },
+    { hosts: ['github.com'], on: { attrs: { 'data-color-mode': 'dark', 'data-dark-theme': 'dark' } } },
+    {
+      hosts: ['wikipedia.org'],
+      on: { add: ['skin-theme-clientpref-night'], remove: ['skin-theme-clientpref-day', 'skin-theme-clientpref-os'] }
+    },
+    {
+      hosts: ['stackoverflow.com', 'stackexchange.com', 'superuser.com', 'serverfault.com', 'askubuntu.com',
+        'mathoverflow.net'],
+      body: true,
+      on: { add: ['theme-dark'], remove: ['theme-light', 'theme-system'] }
+    }
+  ];
+
+  const siteTheme = host ? SITE_THEMES.find((t) => t.hosts.some((h) => host === h || host.endsWith('.' + h))) : null;
+  let siteThemeSaved = null; // what the attributes were before
+  let siteThemeObserver = null;
+
+  function wantSiteTheme() {
+    return !!(isTop && siteTheme && settings && settings.useSiteThemes && D.isEnabledFor(settings, host, env()));
+  }
+
+  function siteThemeTarget() {
+    return siteTheme.body ? document.body : document.documentElement;
+  }
+
+  function putSiteTheme(target) {
+    const on = siteTheme.on;
+    if (!siteThemeSaved) {
+      siteThemeSaved = { attrs: {}, classes: target.className };
+      for (const a of Object.keys(on.attrs || {})) siteThemeSaved.attrs[a] = target.getAttribute(a);
+    }
+    for (const [a, v] of Object.entries(on.attrs || {})) if (target.getAttribute(a) !== v) target.setAttribute(a, v);
+    for (const c of on.remove || []) if (target.classList.contains(c)) target.classList.remove(c);
+    for (const c of on.add || []) if (!target.classList.contains(c)) target.classList.add(c);
+  }
+
+  function applySiteTheme() {
+    if (!siteTheme || !isTop) return;
+    const want = wantSiteTheme();
+    if (want) {
+      const run = () => {
+        const target = siteThemeTarget();
+        if (!target) return;
+        putSiteTheme(target);
+        // The site's scripts may set their own theme again on load.
+        if (!siteThemeObserver) {
+          siteThemeObserver = new MutationObserver(() => { if (siteThemeOn) putSiteTheme(target); });
+          siteThemeObserver.observe(target, { attributes: true, attributeFilter: ['class', ...Object.keys(siteTheme.on.attrs || {})] });
+        }
+      };
+      if (siteTheme.body && !document.body) whenBody(run); else run();
+      siteThemeOn = true;
+    } else if (siteThemeOn) {
+      siteThemeOn = false;
+      if (siteThemeObserver) { siteThemeObserver.disconnect(); siteThemeObserver = null; }
+      const target = siteThemeTarget();
+      if (target && siteThemeSaved) {
+        for (const [a, v] of Object.entries(siteThemeSaved.attrs)) {
+          if (v === null) target.removeAttribute(a); else target.setAttribute(a, v);
+        }
+        for (const c of siteTheme.on.add || []) target.classList.remove(c);
+        for (const c of siteTheme.on.remove || []) if ((' ' + siteThemeSaved.classes + ' ').includes(' ' + c + ' ')) target.classList.add(c);
+      }
+      siteThemeSaved = null;
+    }
+  }
+
+  /* ------------------------------------------------------- excluded elements */
+  /*
+   * Elements the user picked (or a built-in rule names) are shown as on the site. Selectors come
+   * from the extension's own storage and are only used to find elements; they are never put
+   * into the stylesheet (the found elements get an attribute instead).
+   */
+  function validSelector(sel) {
+    if (typeof sel !== 'string' || !sel || sel.length > 500 || /[{};<@\\\n]/.test(sel)) return false;
+    try { document.createDocumentFragment().querySelector(sel); return true; } catch (e) { return false; }
+  }
+
+  function computeExclusions() {
+    const list = isTop && host && settings ? D.exclusionsFor(settings, host).filter(validSelector) : [];
+    return list.concat(BUILTIN_ORIGINAL).join(', ');
+  }
+
+  function processExclusion(el) {
+    let match = false;
+    try { match = !!exclSelector && el.matches(exclSelector); } catch (e) { match = false; }
+    if (match) {
+      // A transparent element shown as on the site would lie on the dark page; it gets the
+      // site's original background behind it, so it looks exactly as on the site.
+      let value = '';
+      const ours = /^bg\d+$/.test(el.getAttribute(EXCL) || '');
+      if (ours || !opaqueBg(el)) {
+        const b = backdrop(parentOf(el));
+        if (b) value = backdropToken(b.css) || '';
+      }
+      if (el.getAttribute(EXCL) !== value) markAttr(el, EXCL, value);
+    } else if (el.hasAttribute(EXCL)) {
+      el.removeAttribute(EXCL);
+    }
+    return match;
+  }
+
+  function refreshExclusions() {
+    const next = computeExclusions();
+    if (next === exclSelector) return false;
+    exclSelector = next;
+    document.querySelectorAll(`[${EXCL}]`).forEach((el) => el.removeAttribute(EXCL));
+    return true;
+  }
+
+  /* ------------------------------------------------------- element picker */
+  const PICK_TEXT = {
+    en: 'Click an element to leave it as on the site · Esc to cancel',
+    ru: 'Нажмите на элемент, чтобы оставить его как на сайте · Esc — отмена'
+  };
+  let picking = null;
+
+  function cssPart(n) {
+    let part = n.localName;
+    const same = n.parentElement ? [...n.parentElement.children].filter((c) => c.localName === n.localName) : [];
+    if (same.length > 1) part += `:nth-of-type(${same.indexOf(n) + 1})`;
+    return part;
+  }
+
+  /** A short selector that finds this element (an id, or a path of tags). */
+  function makeSelector(el) {
+    const idOk = (n) => n.id && /^[A-Za-z][\w-]{0,80}$/.test(n.id) &&
+      document.querySelectorAll('#' + CSS.escape(n.id)).length === 1;
+    if (idOk(el)) return '#' + CSS.escape(el.id);
+    const parts = [];
+    for (let n = el; n && n.nodeType === 1 && n !== document.documentElement; n = n.parentElement) {
+      if (n !== el && idOk(n)) { parts.unshift('#' + CSS.escape(n.id)); break; }
+      parts.unshift(cssPart(n));
+      if (n === document.body) break;
+    }
+    const sel = parts.join(' > ');
+    try { return document.querySelector(sel) === el ? sel : null; } catch (e) { return null; }
+  }
+
+  function stopPicker() {
+    if (!picking) return;
+    const p = picking;
+    picking = null;
+    p.box.remove();
+    p.tip.remove();
+    for (const [type, fn] of p.listeners) window.removeEventListener(type, fn, true);
+  }
+
+  function startPicker() {
+    if (!isTop || picking || !document.body) return;
+    const box = document.createElement('div');
+    const tip = document.createElement('div');
+    box.setAttribute(PICKER, '');
+    tip.setAttribute(PICKER, '');
+    box.style.cssText = 'position:fixed;z-index:2147483647;pointer-events:none;border:2px solid #f5c84c;' +
+      'background:rgba(245,200,76,.18);border-radius:3px;display:none;';
+    tip.style.cssText = 'position:fixed;z-index:2147483647;left:50%;top:12px;transform:translateX(-50%);' +
+      'background:#1e2128;color:#e6e8ec;font:13px/1.4 system-ui,sans-serif;padding:8px 12px;border-radius:8px;' +
+      'box-shadow:0 2px 10px rgba(0,0,0,.4);pointer-events:none;';
+    tip.textContent = PICK_TEXT[settings.language] || PICK_TEXT.en;
+    document.documentElement.append(box, tip);
+    let target = null;
+    const swallow = (e) => { e.preventDefault(); e.stopImmediatePropagation(); };
+    const listeners = [
+      ['mousemove', (e) => {
+        const el = e.target;
+        if (!el || el.nodeType !== 1 || el.hasAttribute(PICKER)) return;
+        target = el;
+        const r = el.getBoundingClientRect();
+        Object.assign(box.style, { display: 'block', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+      }],
+      ['mousedown', swallow], ['mouseup', swallow], ['pointerdown', swallow], ['pointerup', swallow],
+      ['click', async (e) => {
+        swallow(e);
+        const el = target;
+        stopPicker();
+        if (!el || el === document.documentElement || el === document.body) return;
+        const sel = makeSelector(el);
+        if (!sel || !validSelector(sel)) return;
+        const fresh = await D.loadSettings();
+        await chrome.storage.local.set({ exclusions: D.exclusionsWith(fresh, host, sel, true) });
+      }],
+      ['keydown', (e) => { if (e.key === 'Escape') { swallow(e); stopPicker(); } }]
+    ];
+    for (const [type, fn] of listeners) window.addEventListener(type, fn, true);
+    picking = { box, tip, listeners };
   }
 
   const SKIP = new Set(['script', 'style', 'link', 'meta', 'head', 'title', 'noscript', 'template', 'br', 'source', 'track', 'option']);
 
   function processElement(el) {
     if (!el.isConnected) return;
+    if (el.hasAttribute(PICKER)) return;
     if (el.shadowRoot) setupShadow(el.shadowRoot);
     const tag = el.localName;
     if (SKIP.has(tag)) return;
+    processExclusion(el);
     if (tag === 'img' || (tag === 'input' && el.type === 'image')) { processImg(el); return; }
     if (tag === 'video') { processVideo(el); return; }
     if (processBackdrop(el)) return;
-    if (!settings.smartImages) return;
-    if (tag === 'canvas' || tag === 'svg') {
-      if ((tag === 'canvas' || paletteSeen) && isLarge(el)) {
-        surfacesSoon();
-        return;
-      }
-      if (tag === 'canvas') return;
-    }
-    if (el instanceof SVGElement) {
-      if (tag === 'svg' && !el.ownerSVGElement) {
-        processSwatch(el);
-        processSvgArt(el);
-      } else {
-        // Shapes added to an SVG (an animation builds its frames this way): look at it again.
-        const root = outerSvg(el);
-        if (root) svgSoon(root);
-      }
+    if (tag === 'canvas') {
+      if (settings.smartImages && isLarge(el)) surfacesSoon();
       return;
     }
-    processSwatch(el);
-    processBg(el);
+    if (el instanceof SVGElement) {
+      if (settings.smartImages) {
+        if (tag === 'svg' && !el.ownerSVGElement) {
+          if (paletteSeen && isLarge(el)) {
+            surfacesSoon();
+          } else {
+            processSwatch(el);
+            processSvgArt(el);
+          }
+        } else {
+          // Shapes added to an SVG (an animation builds its frames this way): look at it again.
+          const root = outerSvg(el);
+          if (root) svgSoon(root);
+        }
+      }
+      processDynamic(el);
+      return;
+    }
+    if (settings.smartImages) {
+      processSwatch(el);
+      processBg(el);
+    }
+    processDynamic(el);
   }
 
   /* ------------------------------------------------------ inline SVG illustrations */
@@ -848,7 +1325,7 @@
     if (value === null) {
       if (svg.hasAttribute(KEEP)) svg.removeAttribute(KEEP);
     } else if (svg.getAttribute(KEEP) !== value) {
-      svg.setAttribute(KEEP, value);
+      markAttr(svg, KEEP, value);
     }
   }
 
@@ -876,6 +1353,7 @@
       try { processElement(el); } catch (e) { /* ignore single element */ }
       if (performance.now() - start > 15 && deadline.timeRemaining() < 2) break;
     }
+    flushDynamic();
     if (queue.size && !scheduled) { scheduled = true; idle(runQueue); }
   }
 
@@ -957,6 +1435,8 @@
 
   function teardown() {
     dead = true;
+    stopPicker();
+    clearTimeout(scheduleTimer);
     stopObserving();
     if (themeObserver) { themeObserver.disconnect(); themeObserver = null; }
     if (styleEl) styleEl.remove();
@@ -1116,24 +1596,33 @@
   function listen() {
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== 'local' || !settings) return;
-      let relevant = false, images = false;
+      let relevant = false, images = false, excl = false, theme = false;
       for (const k of Object.keys(changes)) {
         if (!(k in D.DEFAULTS)) continue;
         relevant = true;
         const v = changes[k].newValue;
         settings[k] = v === undefined ? D.DEFAULTS[k] : v;
-        if (D.IMAGE_KEYS.includes(k)) images = true;
+        if (D.IMAGE_KEYS.includes(k) || k === 'engine') images = true;
+        if (k === 'exclusions') excl = true;
+        if (['useSiteThemes', 'enabled', 'sites', 'schedule', 'scheduleFrom', 'scheduleTo'].includes(k)) theme = true;
       }
       if (!relevant) return;
+      if (theme) applySiteTheme();
+      const exclChanged = excl && refreshExclusions();
       if (images) resetMarks();
-      update(images);
+      update(images || exclChanged);
       if (isTop && settings.detectDarkSites) scheduleDetect();
     });
 
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (!msg) return;
       if (msg.type === 'getStatus' && isTop) {
-        sendResponse({ ready: !!settings, active: mode === 'full', nativeDark, host });
+        const ruled = settings && host && D.findOverride(settings, host);
+        const scheduleOff = !!(settings && !ruled && settings.enabled && !D.scheduleActive(settings, new Date(), systemDark()));
+        sendResponse({ ready: !!settings, active: mode === 'full', nativeDark, host, scheduleOff, siteTheme: siteThemeOn });
+      } else if (msg.type === 'pickElement' && isTop) {
+        startPicker();
+        sendResponse({ ok: !!picking });
       } else if (msg.type === 'topState' && !isTop) {
         if (topActive !== !!msg.active) { topActive = !!msg.active; update(); }
       }
@@ -1149,6 +1638,8 @@
     if (isTop) nativeDark = !!(host && settings.nativeDark && settings.nativeDark[host]);
     delete settings.nativeDark;
     listen();
+    exclSelector = computeExclusions();
+    applySiteTheme();
     update();
 
     // Sizes decide what is a colour swatch or a drawing surface: look again when they change
@@ -1167,7 +1658,13 @@
       }, 500);
     };
     window.addEventListener('resize', rescan);
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) rescan(); });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) return;
+      rescan();
+      // The schedule may have switched while the tab was in the background (a sleeping computer
+      // delays timers; a system theme change may come without an event).
+      if (isTop && settings && settings.schedule !== 'always') { applySiteTheme(); update(); }
+    });
 
     if (isTop) {
       whenBody(detectNativeDark);
@@ -1177,7 +1674,10 @@
         if (mode) fullScan(); // CSS loaded late may have added background pictures
         setTimeout(() => { detectNativeDark(); persistNativeDark(); }, 1500);
       }, { once: true });
-      matchMedia('(prefers-color-scheme: dark)').addEventListener('change', scheduleDetect);
+      matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        scheduleDetect();
+        if (settings.schedule === 'system') { applySiteTheme(); update(); }
+      });
     } else {
       const r = await send({ type: 'getTopState' });
       if (r && topActive !== !!r.active) { topActive = !!r.active; update(); }

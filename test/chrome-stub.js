@@ -31,4 +31,7 @@
     }
   };
   window.__status = () => new Promise((r) => msgListeners.forEach((f) => f({ type: 'getStatus' }, {}, r)));
+  // Sends a message to the content script, like the popup does (e.g. { type: 'pickElement' }).
+  window.__msg = (msg) => new Promise((r) => msgListeners.forEach((f) => f(msg, {}, r)));
+  window.__store = store;
 })();

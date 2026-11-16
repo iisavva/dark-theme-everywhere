@@ -59,13 +59,21 @@
       lines.push(t(host === 'file' ? 'needFileAccess' : 'reloadPage'));
     } else if (status.active) {
       lines.push(t('statusOn'));
+    } else if (status.siteTheme) {
+      lines.push(t('statusSiteTheme'));
+    } else if (status.scheduleOff) {
+      lines.push(t('statusSchedule'));
     } else if (status.nativeDark && DT.isEnabledFor(settings, host) && settings.detectDarkSites) {
       lines.push(t('statusNativeDark'));
     } else {
       lines.push(t('statusOff'));
     }
     $('status').textContent = lines.join(' ');
-    $('status').classList.toggle('on', !!(status && status.active));
+    $('status').classList.toggle('on', !!(status && (status.active || status.siteTheme)));
+
+    const n = DT.exclusionsFor(settings, host).length;
+    $('excl').hidden = !n;
+    $('exclText').textContent = t('excludedCount', { n });
   }
 
   $('global').addEventListener('change', (e) => chrome.storage.local.set({ enabled: e.target.checked }));
@@ -74,6 +82,21 @@
     const b = e.target.closest('button');
     if (!b || !host) return;
     chrome.storage.local.set({ sites: DT.sitesWith(settings, host, b.dataset.v) });
+  });
+
+  $('pick').addEventListener('click', async () => {
+    if (!host || !tab) return;
+    let r = null;
+    try { r = await chrome.tabs.sendMessage(tab.id, { type: 'pickElement' }, { frameId: 0 }); } catch (e) { r = null; }
+    if (r && r.ok) window.close(); // the page shows the picker now
+    else $('status').textContent = t('reloadPage');
+  });
+
+  $('exclClear').addEventListener('click', () => {
+    if (!host) return;
+    const all = Object.assign({}, settings.exclusions || {});
+    delete all[DT.normalizeHost(host)];
+    chrome.storage.local.set({ exclusions: all });
   });
 
   $('openOptions').addEventListener('click', (e) => {

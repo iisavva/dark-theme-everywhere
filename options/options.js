@@ -46,6 +46,37 @@
     }
   }
 
+  function renderExclusions() {
+    const tbody = $('exclList');
+    tbody.textContent = '';
+    const hosts = Object.keys(settings.exclusions || {}).sort();
+    let count = 0;
+    for (const host of hosts) {
+      for (const sel of DT.exclusionsFor(settings, host)) {
+        count++;
+        const tr = document.createElement('tr');
+        const h = document.createElement('td');
+        h.textContent = host;
+        const c = document.createElement('td');
+        const code = document.createElement('code');
+        code.textContent = sel;
+        c.appendChild(code);
+        const d = document.createElement('td');
+        const del = document.createElement('button');
+        del.className = 'del';
+        del.type = 'button';
+        del.title = t('deleteExclusion');
+        del.setAttribute('aria-label', t('deleteExclusion') + ': ' + sel);
+        del.textContent = '×';
+        del.addEventListener('click', () => chrome.storage.local.set({ exclusions: DT.exclusionsWith(settings, host, sel, false) }));
+        d.appendChild(del);
+        tr.append(h, c, d);
+        tbody.appendChild(tr);
+      }
+    }
+    $('exclEmpty').hidden = count > 0;
+  }
+
   function render() {
     if (I18N.lang !== I18N.setLang(settings.language)) {
       I18N.apply();
@@ -53,7 +84,9 @@
     }
     $('global').checked = !!settings.enabled;
     SettingsForm.fill(settings);
+    $('times').hidden = settings.schedule !== 'time';
     renderSites();
+    renderExclusions();
   }
 
   function save(sites) {
@@ -87,6 +120,7 @@
     const defaults = Object.assign({}, DT.DEFAULTS);
     delete defaults.sites;
     delete defaults.language; // the chosen interface language stays
+    delete defaults.exclusions; // and so do the elements left as on the site
     await chrome.storage.local.set(defaults);
   });
 
