@@ -166,7 +166,7 @@
       if (pct(s.grayscale, 0) !== '0.00') extra.push(`grayscale(${pct(s.grayscale, 0)})`);
       if (extra.length) r.push(`html { filter: ${extra.join(' ')} !important; }`);
     }
-    if (k !== '1.00') r.push(`img:not([${FLIP}]), video { filter: brightness(${k}) !important; }`);
+    if (k !== '1.00') r.push(`img:not([${FLIP}]), video:not([${PLAYER}] video):not([${PLAYER}]) { filter: brightness(${k}) !important; }`);
     r.push(`[${FLIP}], ${THEMED_CANVAS}, ${PDF_EMBED} { filter: ${INV} !important; }`);
     r.push(`[${BOARD}] { background-color: ${rootBg} !important; }`);
     for (const [css, token] of artBackdrops) {
@@ -311,10 +311,12 @@
     for (let n = el; n; n = parentOf(n)) {
       if (n === document.documentElement) return { lum: rootLum, css: rootBg };
       const cs = getComputedStyle(n);
-      const c = parseColor(cs.backgroundColor);
+      // With the dynamic engine an element may show our rewritten colours: use the site's own.
+      const own = dynOrig.get(n);
+      const c = parseColor(own ? own.bg : cs.backgroundColor);
       if (c && c.a >= 0.6) return rgb(c);
       if (n !== el) {
-        const bi = cs.backgroundImage;
+        const bi = own ? own.img : cs.backgroundImage;
         if (bi && bi !== 'none') {
           const g = gradientColor(bi);
           if (g) return rgb(g);
@@ -498,8 +500,8 @@
       if (d === 'keep') markAttr(el, KEEP, '');
       else el.removeAttribute(KEEP);
       // Dynamic engine: the page is not inverted, so a dark transparent icon is inverted on its own
-      // (only without text in it: inverting would turn the text dark).
-      const inv = dynamic() && d === 'flip' && st && st.transparent >= 0.1 && !hasVisibleText(el);
+      // (only without any text in it, also nested: inverting would turn the text dark).
+      const inv = dynamic() && d === 'flip' && st && st.transparent >= 0.1 && !(el.textContent || '').trim();
       if (inv) el.setAttribute(FLIP, ''); else if (el.hasAttribute(FLIP)) el.removeAttribute(FLIP);
     });
   }
@@ -820,6 +822,7 @@
   let dynMaps = { b: new Map(), t: new Map(), r: new Map(), g: new Map(), f: new Map(), s: new Map() };
   let dynDirty = false;
   const dynLast = new WeakMap(); // element -> time of the last rewrite
+  const dynOrig = new WeakMap(); // element -> the site's own { bg, img } before rewriting
 
   function toHsl(c) {
     const r = c.r / 255, g = c.g / 255, b = c.b / 255;
@@ -944,6 +947,7 @@
       return;
     }
     if (el !== document.documentElement) {
+      dynOrig.set(el, { bg: cs.backgroundColor, img: cs.backgroundImage });
       const bc = parseColor(cs.backgroundColor);
       const bcss = bc && bc.a > 0.02 ? mapBg(bc) : null;
       setDyn(el, 'b', bcss ? dynIndex('b', cs.backgroundColor, bcss) : null);
@@ -1079,7 +1083,9 @@
 
   function computeExclusions() {
     const list = isTop && host && settings ? D.exclusionsFor(settings, host).filter(validSelector) : [];
-    return list.concat(BUILTIN_ORIGINAL).join(', ');
+    // The Google Slides rule only applies there, not to any site that uses the same ids.
+    const builtin = host === 'docs.google.com' ? BUILTIN_ORIGINAL : [];
+    return list.concat(builtin).join(', ');
   }
 
   function processExclusion(el) {
@@ -1643,6 +1649,9 @@
     exclSelector = computeExclusions();
     applySiteTheme();
     update();
+    // Report the state once even when it did not change (the theme may be off from the start), so
+    // the toolbar icon and the badge of this tab are right.
+    if (isTop) send({ type: 'topState', active: mode === 'full' });
 
     // Sizes decide what is a colour swatch or a drawing surface: look again when they change
     // (and when a page that was loaded in a hidden window or tab is shown).

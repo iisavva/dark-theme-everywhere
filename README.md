@@ -236,6 +236,9 @@ browser API. With the extension installed, open the page without `?stub`.
 
 - Colour emoji in text are inverted along with the text (inversion engine; the colour rewriting
   engine leaves them as they are).
+- Colour rewriting engine: a dark icon set as a CSS background of an element that also holds text
+  (a button with an icon and a label) stays dark, because inverting the element would turn its
+  text dark too. Icons without text are inverted.
 - PDF theming works in Chrome and Edge; Firefox shows PDFs in its own viewer, where extensions
   cannot run. Pictures inside a PDF or drawn on a Google Docs page are inverted together with it.
 - Images inside a closed Shadow DOM are not processed.

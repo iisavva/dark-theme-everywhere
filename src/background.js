@@ -30,7 +30,11 @@ function badgeFor(url) {
   return n ? { text: String(n), color: '#b07d16' } : { text: '', color: '#000' };
 }
 
-function setBadge(tabId, url) {
+async function setBadge(tabId, url) {
+  // The worker is restarted often (Manifest V3): load the settings if they are not there yet.
+  if (!current) {
+    try { current = await DT.loadSettings(); I18N.setLang(current.language); } catch (e) { return; }
+  }
   const b = badgeFor(url);
   chrome.action.setBadgeText({ tabId, text: b.text }).catch(() => {});
   if (b.text) chrome.action.setBadgeBackgroundColor({ tabId, color: b.color }).catch(() => {});
@@ -380,7 +384,8 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
     const host = tab && DT.hostFromUrl(tab.url);
     if (!host) return;
     const status = await chrome.tabs.sendMessage(tab.id, { type: 'getStatus' }, { frameId: 0 }).catch(() => null);
-    const isOn = status && status.ready ? status.active : DT.isEnabledFor(settings, host);
+    // The site's own dark theme counts as on: the shortcut must turn it off, not "on" again.
+    const isOn = status && status.ready ? (status.active || status.siteTheme) : DT.isEnabledFor(settings, host);
     await chrome.storage.local.set({ sites: DT.sitesWith(settings, host, isOn ? 'off' : 'on') });
   }
 });

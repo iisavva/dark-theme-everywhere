@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Test: regressions</title>
+  <script>
+    if (/[?&]stub\b/.test(location.search)) {
+      var v = '?v=' + Date.now(); // no stale scripts from the cache
+      document.write('<script src="chrome-stub.js' + v + '"><\/script><script src="../src/shared.js' + v + '"><\/script><script src="../src/content.js' + v + '"><\/script>');
+    }
+  </script>
+  <style>
+    body { font: 15px Arial, sans-serif; color: #222; margin: 24px; background: #fff; }
+    .iconbtn { display: inline-block; padding: 8px 12px 8px 40px; background: url(img/icon-dark.png) no-repeat 6px center / 28px; }
+  </style>
+</head>
+<body>
+  <h1>Regressions</h1>
+  <!-- 1. Not Google Slides: an ordinary page that happens to use these ids -->
+  <div id="workspace"><div id="pages"><svg id="notSlides" width="200" height="60"><rect width="200" height="60" fill="#111"/></svg></div></div>
+  <!-- 2. A dark icon as CSS background, with its text in a nested element -->
+  <p><a class="iconbtn" id="iconbtn" href="#"><span>Settings</span></a></p>
+  <!-- 3. A dark icon as CSS background without text: must turn light with colour rewriting too -->
+  <p><span id="icononly" style="display:inline-block;width:32px;height:32px;background:url(img/icon-dark.png) center/28px no-repeat"></span></p>
+</body>
+</html>

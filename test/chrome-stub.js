@@ -1,6 +1,8 @@
 /* Minimal chrome.* stub so the content script can run on a plain page for manual testing. */
 (function () {
-  const store = {};
+  // Settings a test page wants from the start: ?preset=<JSON> in the address
+  const preset = (() => { try { return JSON.parse(new URLSearchParams(location.search).get('preset') || '{}'); } catch (e) { return {}; } })();
+  const store = Object.assign({}, preset);
   const listeners = [];
   const msgListeners = [];
   const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
@@ -8,7 +10,10 @@
     runtime: {
       id: 'stub',
       // An iframe asks whether the page around it is themed: in tests it always is.
-      sendMessage: (msg) => Promise.resolve(msg && msg.type === 'getTopState' ? { active: true } : null),
+      sendMessage: (msg) => {
+        (window.__sent = window.__sent || []).push(msg); // what the content script reported
+        return Promise.resolve(msg && msg.type === 'getTopState' ? { active: true } : null);
+      },
       onMessage: { addListener: (f) => msgListeners.push(f) }
     },
     storage: {
